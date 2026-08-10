@@ -100,6 +100,7 @@ export type AppointmentStatus =
   | 'cancelada_enviada'
   | 'cancelada_conflicto'
   | 'anulada_por_cruce'
+  | 'anulada_por_limite'
   | 'completada'
 
 export type AppointmentDirection = 'sent' | 'received'
@@ -111,7 +112,7 @@ export type Appointment = {
   day: string
   time: string
   table: string
-  /** Mesa 01–10 from DB; used for allocation when `table` label differs. */
+  /** Mesa 01–06 from DB; used for allocation when `table` label differs. */
   tableNumber?: number
   requesterId?: string
   recipientId?: string

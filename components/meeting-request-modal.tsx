@@ -170,8 +170,8 @@ export function MeetingRequestModal({
                   Selecciona un bloque disponible
                 </p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {EVENT.shortName} · {EVENT.dateRangeLabel}. Cada bloque tiene hasta 10 mesas
-                  físicas (Mesa 01–10). Las solicitudes pendientes reservan mesa en ese horario.
+                  {EVENT.shortName} · {EVENT.dateRangeLabel}. Cada bloque tiene hasta 6 mesas
+                  físicas (Mesa 01–06). Las solicitudes pendientes reservan mesa en ese horario.
                 </p>
                 <div className="max-h-64 space-y-4 overflow-y-auto pr-1">
                   {slotsByDay.map(([dayLabel, slots]) => (

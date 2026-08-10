@@ -36,11 +36,14 @@ import {
   cancelPendingInSlotExcept,
   fetchAllActiveMeetings,
   fetchOccupancyForBlock,
+  fetchOutgoingConfirmedCount,
   fetchUserMeetings,
   insertMeetingRequest,
+  rebouncePendingSentOverLimit,
   saveMeetingEvaluationToDb,
   updateMeeting,
 } from '@/lib/supabase/meetings-repository'
+import { isOutgoingSendBlocked } from '@/lib/meeting-outgoing-limit'
 import { getEventSlotById } from '@/lib/meeting-slots'
 import { fetchProfileDisplayName, fetchMyProfile } from '@/lib/supabase/profiles-repository'
 import {
@@ -297,6 +300,7 @@ function PlatformApp() {
   }
 
   const agendaCount = agendaSidebarBadgeCount(appointments)
+  const outgoingSendBlocked = isOutgoingSendBlocked(appointments)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -304,6 +308,7 @@ function PlatformApp() {
   }
 
   function openRequest(participant: Participant) {
+    if (isOutgoingSendBlocked(appointments)) return
     setSelected(participant)
     setModalOpen(true)
     void refreshSlotOccupancy()
@@ -380,7 +385,26 @@ function PlatformApp() {
     const activeUserId = userId ?? getAuthSession()?.userId
     if (!activeUserId) return
 
-    const result = acceptMeetingRequest(appointments, slotOccupancy, id)
+    const target = appointments.find((appt) => appt.id === id)
+    const requesterId =
+      target?.requesterId ??
+      (target?.direction === 'received' ? target.participantId : undefined)
+
+    let requesterConfirmed = 0
+    if (requesterId) {
+      try {
+        requesterConfirmed = await fetchOutgoingConfirmedCount(requesterId)
+      } catch {
+        requesterConfirmed = 0
+      }
+    }
+
+    const result = acceptMeetingRequest(
+      appointments,
+      slotOccupancy,
+      id,
+      requesterConfirmed,
+    )
     if (result.error) {
       showToast(result.error)
       return
@@ -394,6 +418,9 @@ function PlatformApp() {
     try {
       await updateMeeting(id, { status: 'confirmada' })
       await cancelPendingInSlotExcept(accepted.slotId, id)
+      if (requesterId) {
+        await rebouncePendingSentOverLimit(requesterId)
+      }
       await reloadMeetings(activeUserId)
 
       if (result.notifications.length > 0) {
@@ -670,10 +697,15 @@ function PlatformApp() {
               onAgenda={() => navigate('agenda')}
               onRequest={openRequest}
               onViewProfile={openProfile}
+              requestDisabled={outgoingSendBlocked}
             />
           )}
           {view === 'explorar' && (
-            <ExploreView onRequest={openRequest} onViewProfile={openProfile} />
+            <ExploreView
+              onRequest={openRequest}
+              onViewProfile={openProfile}
+              requestDisabled={outgoingSendBlocked}
+            />
           )}
           {view === 'agenda' && (
             <AgendaView
@@ -718,6 +750,7 @@ function PlatformApp() {
         open={profileOpen}
         onOpenChange={setProfileOpen}
         onRequest={openRequest}
+        requestDisabled={outgoingSendBlocked}
       />
 
       <div

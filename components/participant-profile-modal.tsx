@@ -16,12 +16,14 @@ export function ParticipantProfileModal({
   onOpenChange,
   onRequest,
   readOnly = false,
+  requestDisabled = false,
 }: {
   participant: Participant | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onRequest?: (participant: Participant) => void
   readOnly?: boolean
+  requestDisabled?: boolean
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -144,6 +146,7 @@ export function ParticipantProfileModal({
                   <Button
                     size="lg"
                     className="mt-6 w-full"
+                    disabled={requestDisabled}
                     onClick={() => {
                       onOpenChange(false)
                       onRequest?.(participant)

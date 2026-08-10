@@ -1,12 +1,68 @@
 -- Ocupación de mesas por bloque horario (todas las reuniones activas del evento).
 -- Ejecutar en Supabase SQL Editor después de crear la tabla `meetings`.
+--
+-- IMPORTANTE: Si `table_number` fue creada como text (p. ej. "1" o "Mesa 01"),
+-- el bloque de migración siguiente la normaliza a integer (1–6) antes de crear funciones.
 
--- Evita doble reserva de la misma mesa en el mismo bloque (pendiente o confirmada).
+-- ---------------------------------------------------------------------------
+-- 0. Migración: table_number → integer (1–6)
+-- ---------------------------------------------------------------------------
+create or replace function public.parse_meeting_table_number(p_value text)
+returns integer
+language sql
+immutable
+strict
+as $$
+  select case
+    when p_value is null or btrim(p_value) = '' then null
+    when btrim(p_value) ~ '^\d+$' then btrim(p_value)::integer
+    else (regexp_match(btrim(p_value), '(\d{1,2})'))[1]::integer
+  end;
+$$;
+
+do $$
+declare
+  v_data_type text;
+begin
+  select c.data_type
+  into v_data_type
+  from information_schema.columns c
+  where c.table_schema = 'public'
+    and c.table_name = 'meetings'
+    and c.column_name = 'table_number';
+
+  if v_data_type is null then
+    raise exception 'Columna public.meetings.table_number no existe. Crea la tabla meetings primero.';
+  end if;
+
+  if v_data_type in ('text', 'character varying') then
+    alter table public.meetings
+      alter column table_number type integer
+      using (
+        case
+          when public.parse_meeting_table_number(table_number::text) between 1 and 6
+            then public.parse_meeting_table_number(table_number::text)
+          else null
+        end
+      );
+  end if;
+
+  alter table public.meetings drop constraint if exists meetings_table_number_range;
+  alter table public.meetings
+    add constraint meetings_table_number_range
+    check (table_number is null or table_number between 1 and 6);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 1. Índice único por bloque + mesa
+-- ---------------------------------------------------------------------------
 create unique index if not exists meetings_active_slot_table_unique
   on public.meetings (day, slot_time, table_number)
   where status in ('pendiente', 'confirmada', 'pending', 'confirmed');
 
--- Ocupación global (SECURITY DEFINER — ve todas las reuniones activas).
+-- ---------------------------------------------------------------------------
+-- 2. Ocupación global (SECURITY DEFINER — ve todas las reuniones activas)
+-- ---------------------------------------------------------------------------
 create or replace function public.get_active_meeting_occupancy()
 returns table (
   id uuid,
@@ -34,13 +90,15 @@ as $$
     m.recipient_id
   from public.meetings m
   where m.status in ('pendiente', 'confirmada', 'pending', 'confirmed')
-    and m.table_number between 1 and 10;
+    and m.table_number between 1 and 6;
 $$;
 
 revoke all on function public.get_active_meeting_occupancy() from public;
 grant execute on function public.get_active_meeting_occupancy() to authenticated;
 
--- Reasigna mesas duplicadas solo en solicitudes pendientes (confirmadas no se mueven).
+-- ---------------------------------------------------------------------------
+-- 3. Reasigna mesas duplicadas en solicitudes pendientes
+-- ---------------------------------------------------------------------------
 create or replace function public.correct_duplicate_pending_tables()
 returns integer
 language plpgsql
@@ -56,6 +114,7 @@ begin
     select m.id, m.day, m.slot_time, m.table_number, m.created_at
     from public.meetings m
     where m.status = 'pendiente'
+      and m.table_number is not null
       and exists (
         select 1
         from public.meetings keeper
@@ -72,7 +131,7 @@ begin
       )
   loop
     select n into v_new_table
-    from generate_series(1, 10) as n
+    from generate_series(1, 6) as n
     where not exists (
       select 1
       from public.meetings x
@@ -100,7 +159,9 @@ $$;
 revoke all on function public.correct_duplicate_pending_tables() from public;
 grant execute on function public.correct_duplicate_pending_tables() to authenticated;
 
--- Inserta solicitud asignando atómicamente la primera mesa libre (01–10).
+-- ---------------------------------------------------------------------------
+-- 4. Inserta solicitud asignando atómicamente la primera mesa libre (01–06)
+-- ---------------------------------------------------------------------------
 create or replace function public.insert_meeting_request_with_table(
   p_recipient_id uuid,
   p_day text,
@@ -124,7 +185,7 @@ begin
   perform public.correct_duplicate_pending_tables();
 
   select n into v_table
-  from generate_series(1, 10) as n
+  from generate_series(1, 6) as n
   where not exists (
     select 1
     from public.meetings m
@@ -169,7 +230,9 @@ $$;
 revoke all on function public.insert_meeting_request_with_table(uuid, text, text, text) from public;
 grant execute on function public.insert_meeting_request_with_table(uuid, text, text, text) to authenticated;
 
--- RLS: lectura de ocupación activa entre usuarios (fallback si RPC falla).
+-- ---------------------------------------------------------------------------
+-- 5. RLS: lectura de ocupación activa entre usuarios (fallback si RPC falla)
+-- ---------------------------------------------------------------------------
 alter table public.meetings enable row level security;
 
 drop policy if exists "meetings_select_active_occupancy" on public.meetings;
@@ -190,7 +253,6 @@ create policy "meetings_select_own"
     requester_id = auth.uid() or recipient_id = auth.uid()
   );
 
--- Permite corregir mesa en solicitudes pendientes propias.
 drop policy if exists "meetings_update_pending_table" on public.meetings;
 create policy "meetings_update_pending_table"
   on public.meetings
@@ -202,5 +264,5 @@ create policy "meetings_update_pending_table"
   )
   with check (
     status = 'pendiente'
-    and table_number between 1 and 10
+    and table_number between 1 and 6
   );

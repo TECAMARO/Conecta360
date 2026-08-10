@@ -18,6 +18,11 @@ import {
 import { canSendMeetingRequest } from '@/lib/agenda-protection'
 import { dbMeetingStatusToApp } from '@/lib/supabase/meeting-status'
 import {
+  isOutgoingSendBlocked,
+  MAX_OUTGOING_CONFIRMED_MEETINGS,
+  OUTGOING_LIMIT_SILENT_MESSAGE,
+} from '@/lib/meeting-outgoing-limit'
+import {
   applyTableCorrectionsLocally,
   filterLogisticallyActiveReservations,
   planPendingTableCorrections,
@@ -184,10 +189,15 @@ async function resolveTableForNewRequest(
   return tableNumber
 }
 
-/** Inserts a meeting request; assigns the first free Mesa 01–10 for the block. */
+/** Inserts a meeting request; assigns the first free Mesa 01–06 for the block. */
 export async function insertMeetingRequest(payload: MeetingRequestPayload): Promise<MeetingRow> {
   const user = await requireAuthenticatedUser()
   assertMeetingRequestPayload(user.id, payload)
+
+  const { appointments: userAppointments } = await fetchUserMeetings(user.id)
+  if (isOutgoingSendBlocked(userAppointments)) {
+    throw new Error(OUTGOING_LIMIT_SILENT_MESSAGE)
+  }
 
   const proposal = payload.message?.trim() ?? ''
 
@@ -206,11 +216,11 @@ export async function insertMeetingRequest(payload: MeetingRequestPayload): Prom
   }
 
   await correctDuplicatePendingTables()
-  const { appointments: userAppointments } = await fetchUserMeetings(user.id)
+  const { appointments: refreshedAppointments } = await fetchUserMeetings(user.id)
 
   const MAX_ATTEMPTS = 5
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const tableNumber = await resolveTableForNewRequest(payload, userAppointments)
+    const tableNumber = await resolveTableForNewRequest(payload, refreshedAppointments)
 
     const { data, error } = await supabase
       .from('meetings')
@@ -359,4 +369,35 @@ export async function cancelPendingInSlotExcept(
     .neq('id', exceptMeetingId)
 
   if (error) throw new Error(error.message)
+}
+
+/** Solicitudes enviadas confirmadas/completadas por un usuario (cupos de envío). */
+export async function fetchOutgoingConfirmedCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('meetings')
+    .select('id', { count: 'exact', head: true })
+    .eq('requester_id', userId)
+    .in('status', ['confirmada', 'completada', 'confirmed', 'completed'])
+
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+/**
+ * Anula solicitudes pendientes enviadas cuando el solicitante ya tiene
+ * {@link MAX_OUTGOING_CONFIRMED_MEETINGS} reuniones confirmadas.
+ */
+export async function rebouncePendingSentOverLimit(requesterId: string): Promise<number> {
+  const confirmed = await fetchOutgoingConfirmedCount(requesterId)
+  if (confirmed < MAX_OUTGOING_CONFIRMED_MEETINGS) return 0
+
+  const { data, error } = await supabase
+    .from('meetings')
+    .update({ status: 'anulada_por_limite' })
+    .eq('requester_id', requesterId)
+    .eq('status', MEETING_DB_STATUS_PENDING)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  return data?.length ?? 0
 }

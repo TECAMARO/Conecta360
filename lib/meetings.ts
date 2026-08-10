@@ -78,12 +78,18 @@ export function acceptMeetingRequest(
   userAppointments: Appointment[],
   slotOccupancy: Appointment[],
   requestId: string,
+  requesterOutgoingConfirmed?: number,
 ): {
   appointments: Appointment[]
   notifications: AgendaNotification[]
   error?: string
 } {
-  const validation = canAcceptMeetingRequest(userAppointments, slotOccupancy, requestId)
+  const validation = canAcceptMeetingRequest(
+    userAppointments,
+    slotOccupancy,
+    requestId,
+    requesterOutgoingConfirmed,
+  )
   if (!validation.ok) {
     return { appointments: userAppointments, notifications: [], error: validation.message }
   }
@@ -179,7 +185,10 @@ export function filterCancelledMeetings(appointments: Appointment[]): Appointmen
 
 export function filterConflictHistory(appointments: Appointment[]): Appointment[] {
   return appointments.filter(
-    (a) => a.status === 'anulada_por_cruce' || a.status === 'cancelada_conflicto',
+    (a) =>
+      a.status === 'anulada_por_cruce' ||
+      a.status === 'cancelada_conflicto' ||
+      a.status === 'anulada_por_limite',
   )
 }
 

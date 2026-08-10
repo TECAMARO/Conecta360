@@ -14,11 +14,14 @@ export function ParticipantCard({
   onRequest,
   onViewProfile,
   readOnly = false,
+  requestDisabled = false,
 }: {
   participant: Participant
   onRequest?: (participant: Participant) => void
   onViewProfile: (participant: Participant) => void
   readOnly?: boolean
+  /** Bloqueo silencioso cuando el usuario alcanzó el cupo de envíos confirmados. */
+  requestDisabled?: boolean
 }) {
   return (
     <article className="flex flex-col rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
@@ -107,7 +110,11 @@ export function ParticipantCard({
           </>
         ) : (
           <>
-            <Button className="min-h-11 w-full flex-1 sm:w-auto" onClick={() => onRequest?.(participant)}>
+            <Button
+              className="min-h-11 w-full flex-1 sm:w-auto"
+              disabled={requestDisabled}
+              onClick={() => onRequest?.(participant)}
+            >
               Solicitar Reunión
               <ArrowUpRight className="size-4" />
             </Button>

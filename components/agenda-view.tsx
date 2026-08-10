@@ -24,6 +24,7 @@ import {
 } from '@/lib/meeting-evaluation'
 import { MeetingEvaluationModal } from '@/components/meeting-evaluation-modal'
 import { EVENT } from '@/lib/event-config'
+import { OUTGOING_LIMIT_RECIPIENT_MESSAGE } from '@/lib/meeting-outgoing-limit'
 import {
   CalendarDays,
   Clock,
@@ -106,6 +107,14 @@ function MeetingStatusBadge({ appointment }: { appointment: Appointment }) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
         🚫 Anulada por cruce de horario
+      </span>
+    )
+  }
+
+  if (status === 'anulada_por_limite') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        ↩ No disponible
       </span>
     )
   }
@@ -276,6 +285,12 @@ function cancellationNotice(appointment: Appointment): string {
       : 'Rechazaste esta solicitud. El horario quedó disponible nuevamente.'
   }
 
+  if (appointment.status === 'anulada_por_limite') {
+    return appointment.direction === 'received'
+      ? OUTGOING_LIMIT_RECIPIENT_MESSAGE
+      : 'Esta solicitud fue anulada porque alcanzaste el límite de agendamientos confirmados.'
+  }
+
   return ''
 }
 
@@ -437,7 +452,7 @@ export function AgendaView({
           <Pin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
           <p className="flex-1">
             📌 Recordatorio presencial: Por favor preséntate 5 minutos antes de la hora
-            programada en la mesa asignada (Mesa 01 a 10) para garantizar el desarrollo puntual
+            programada en la mesa asignada (Mesa 01 a 06) para garantizar el desarrollo puntual
             de los 20 minutos de tu sesión.
           </p>
           <button

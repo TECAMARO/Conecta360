@@ -24,6 +24,7 @@ export function DashboardView({
   onAgenda,
   onRequest,
   onViewProfile,
+  requestDisabled = false,
 }: {
   appointments: Appointment[]
   unreadCount: number
@@ -33,6 +34,7 @@ export function DashboardView({
   onAgenda: () => void
   onRequest: (p: Participant) => void
   onViewProfile: (p: Participant) => void
+  requestDisabled?: boolean
 }) {
   const confirmed = appointments.filter((a) => a.status === 'confirmada')
   const upcoming = [...confirmed].sort((a, b) => a.time.localeCompare(b.time)).slice(0, 3)
@@ -195,6 +197,7 @@ export function DashboardView({
                       size="default"
                       variant="outline"
                       className="min-h-11 min-w-11 shrink-0"
+                      disabled={requestDisabled}
                       onClick={() => onRequest(p)}
                       aria-label={`Solicitar reunión con ${p.name}`}
                     >

@@ -17,9 +17,11 @@ import { Loader2, Search } from 'lucide-react'
 export function ExploreView({
   onRequest,
   onViewProfile,
+  requestDisabled = false,
 }: {
   onRequest: (participant: Participant) => void
   onViewProfile: (participant: Participant) => void
+  requestDisabled?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [activeSector, setActiveSector] = useState<SectorFilterValue>(ALL_SECTORS_FILTER)
@@ -111,6 +113,7 @@ export function ExploreView({
                   participant={p}
                   onRequest={p.isCurrentUser ? undefined : onRequest}
                   onViewProfile={onViewProfile}
+                  requestDisabled={requestDisabled}
                 />
               ))}
             </div>

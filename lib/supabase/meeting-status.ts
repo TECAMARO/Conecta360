@@ -14,6 +14,7 @@ const DB_TO_APP: Record<string, AppointmentStatus> = {
   cancelada_enviada: 'cancelada_enviada',
   cancelada_conflicto: 'cancelada_conflicto',
   anulada_por_cruce: 'anulada_por_cruce',
+  anulada_por_limite: 'anulada_por_limite',
   completed: 'completada',
   completada: 'completada',
 }

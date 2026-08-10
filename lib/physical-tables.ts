@@ -2,7 +2,7 @@ import type { Appointment } from '@/lib/data'
 import { isMeetingSlotPast } from '@/lib/meeting-evaluation'
 import { meetingDayAndTimeFromSlotId, slotIdFromMeetingDayAndTime } from '@/lib/meeting-slots'
 
-export const MAX_PHYSICAL_TABLES = 10
+export const MAX_PHYSICAL_TABLES = 6
 export const MEETING_MODALITY = 'presencial' as const
 
 const ACTIVE_TABLE_STATUSES = new Set<Appointment['status']>(['pendiente', 'confirmada'])
@@ -52,7 +52,7 @@ export function isSameMeetingBlock(
   return false
 }
 
-/** Formats table index as "Mesa 01" … "Mesa 10". */
+/** Formats table index as "Mesa 01" … "Mesa 06". */
 export function formatPhysicalTable(tableNumber: number): string {
   return `Mesa ${String(tableNumber).padStart(2, '0')}`
 }
@@ -94,7 +94,7 @@ export function isSlotTablesExhausted(
   )
 }
 
-/** First free Mesa 01–10 for the given block, or null if full. */
+/** First free Mesa 01–06 for the given block, or null if full. */
 export function getNextAvailableTable(
   appointments: Appointment[],
   slotId: string,
@@ -112,7 +112,7 @@ export function normalizePhysicalTable(table: string): string {
   return parsed ? formatPhysicalTable(parsed) : table
 }
 
-/** Mesa 01 … Mesa 10 — pool logístico del evento. */
+/** Mesa 01 … Mesa 06 — pool logístico del evento. */
 export const PHYSICAL_TABLE_LIST: readonly string[] = Array.from(
   { length: MAX_PHYSICAL_TABLES },
   (_, index) => formatPhysicalTable(index + 1),

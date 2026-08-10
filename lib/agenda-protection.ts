@@ -5,6 +5,12 @@ import {
   isSameMeetingBlock,
   mergeAppointmentsForValidation,
 } from '@/lib/physical-tables'
+import {
+  isOutgoingSendBlocked,
+  isRequesterAtOutgoingLimit,
+  OUTGOING_LIMIT_RECIPIENT_MESSAGE,
+  OUTGOING_LIMIT_SILENT_MESSAGE,
+} from '@/lib/meeting-outgoing-limit'
 
 const SENDER_BLOCKING_STATUSES = new Set<Appointment['status']>(['confirmada', 'pendiente'])
 const RECEIVER_BLOCKING_STATUSES = new Set<Appointment['status']>(['confirmada'])
@@ -128,6 +134,10 @@ export function canSendMeetingRequest(
   targetParticipantId: string,
   slotId: string,
 ): { ok: true; table: string } | { ok: false; message: string } {
+  if (isOutgoingSendBlocked(ctx.userAppointments)) {
+    return { ok: false, message: OUTGOING_LIMIT_SILENT_MESSAGE }
+  }
+
   const availability = getSlotAvailability(ctx, slotId, targetParticipantId)
   if (!availability.available) {
     return { ok: false, message: availability.message ?? SLOT_UNAVAILABLE_AGENDA }
@@ -159,10 +169,18 @@ export function canAcceptMeetingRequest(
   userAppointments: Appointment[],
   slotOccupancy: Appointment[],
   requestId: string,
+  requesterOutgoingConfirmed?: number,
 ): { ok: true; table: string } | { ok: false; message: string } {
   const target = userAppointments.find((appt) => appt.id === requestId)
   if (!target || target.status !== 'pendiente') {
     return { ok: false, message: 'Esta solicitud ya no está disponible para aceptar.' }
+  }
+
+  if (
+    requesterOutgoingConfirmed !== undefined &&
+    isRequesterAtOutgoingLimit(requesterOutgoingConfirmed)
+  ) {
+    return { ok: false, message: OUTGOING_LIMIT_RECIPIENT_MESSAGE }
   }
 
   if (isCurrentUserConfirmedAtSlot(userAppointments, target.slotId, requestId)) {

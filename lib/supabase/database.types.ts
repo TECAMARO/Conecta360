@@ -7,6 +7,7 @@ export type AppointmentStatus =
   | 'cancelada_enviada'
   | 'cancelada_conflicto'
   | 'anulada_por_cruce'
+  | 'anulada_por_limite'
   | 'completada'
 
 export type Database = {
