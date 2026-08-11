@@ -20,13 +20,17 @@ export async function signInWithEmail(email: string, password: string): Promise<
   return session
 }
 
-/** Tras login del Admin Maestro: emite OTP y prepara verificación 2FA. */
-export async function initiateMasterAdminOtpFlow(): Promise<void> {
+/** Tras login del Admin Maestro: emite OTP (SQL + correo SMTP) y prepara 2FA. */
+export async function initiateMasterAdminOtpFlow(): Promise<{ devCode?: string }> {
   const res = await fetch('/api/auth/admin-otp/send', { method: 'POST' })
+  const data = (await res.json()) as { error?: string; devCode?: string }
   if (!res.ok) {
-    const data = (await res.json()) as { error?: string }
     throw new Error(data.error ?? 'No se pudo enviar el código de verificación.')
   }
+  if (data.devCode && typeof window !== 'undefined') {
+    sessionStorage.setItem('conecta360_admin_otp_dev', data.devCode)
+  }
+  return { devCode: data.devCode }
 }
 
 export function requiresMasterAdminOtp(email: string): boolean {

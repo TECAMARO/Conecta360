@@ -155,7 +155,7 @@ export type Database = {
       }
       issue_admin_otp_challenge: {
         Args: { p_otp_hash: string; p_expires_at: string }
-        Returns: undefined
+        Returns: string
       }
       verify_admin_otp_challenge: {
         Args: { p_otp_hash: string }

@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
-import { MASTER_ADMIN_EMAIL, isMasterAdminEmail } from '@/lib/admin-auth/constants'
+import {
+  ADMIN_OTP_TTL_MS,
+  generateOtpCode,
+  MASTER_ADMIN_EMAIL,
+  isMasterAdminEmail,
+} from '@/lib/admin-auth/constants'
+import { hashAdminOtp } from '@/lib/admin-auth/otp-hash'
 import { sendAdminOtpEmail } from '@/lib/admin-auth/send-otp-email'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
@@ -24,11 +30,30 @@ export async function POST() {
       return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
     }
 
-    await sendAdminOtpEmail()
+    const code = generateOtpCode()
+    const otpHash = hashAdminOtp(code, user.id)
+    const expiresAt = new Date(Date.now() + ADMIN_OTP_TTL_MS).toISOString()
+
+    const { error: rpcError } = await supabase.rpc('issue_admin_otp_challenge', {
+      p_otp_hash: otpHash,
+      p_expires_at: expiresAt,
+    })
+
+    if (rpcError) {
+      return NextResponse.json(
+        {
+          error: `Error SQL al registrar OTP: ${rpcError.message}. Ejecuta supabase/admin-otp-setup.sql en Supabase.`,
+        },
+        { status: 500 },
+      )
+    }
+
+    const mail = await sendAdminOtpEmail(code)
 
     const response = NextResponse.json({
       ok: true,
-      sentTo: MASTER_ADMIN_EMAIL,
+      sentTo: mail.sentTo ?? MASTER_ADMIN_EMAIL,
+      ...(mail.devCode ? { devCode: mail.devCode } : {}),
     })
     response.cookies.delete('c360_admin_2fa')
     return response
