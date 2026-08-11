@@ -1,12 +1,10 @@
--- Conecta360 · OTP 4 dígitos + SQL (admin_otp_challenges)
--- NO usa magic link de Supabase Auth. El correo lo envía la app vía SMTP.
--- Ejecutar en Supabase SQL Editor (script autocontenido).
+-- Conecta360 · OTP Admin — SCRIPT COMPLETO AUTOCONTENIDO
+-- Ejecutar TODO este bloque en Supabase → SQL Editor → Run
+-- Corrige: "function public.is_master_admin_user() does not exist"
 
 begin;
 
--- ---------------------------------------------------------------------------
--- 0. Prerrequisitos: profiles.role + admin maestro
--- ---------------------------------------------------------------------------
+-- ── Prerrequisitos: columna role + admin maestro ─────────────────────────────
 alter table public.profiles
   add column if not exists role text not null default 'user';
 
@@ -23,10 +21,7 @@ from auth.users u
 where p.id = u.id
   and lower(trim(coalesce(p.email, u.email))) = lower('rdnv1amaro@gmail.com');
 
--- ---------------------------------------------------------------------------
--- 1. Helper Admin Maestro (OTP) — NO eliminar is_admin_user(): las políticas
---    profiles_select_admin_all y meetings_select_admin_all dependen de ella.
--- ---------------------------------------------------------------------------
+-- ── Helper Admin Maestro (OTP) — convive con is_admin_user() de admin-setup ──
 create or replace function public.is_master_admin_user()
 returns boolean
 language sql
@@ -41,7 +36,7 @@ as $$
       from auth.users u
       inner join public.profiles p on p.id = u.id
       where u.id = auth.uid()
-        and lower(trim(u.email)) = lower('rdnv1amaro@gmail.com')
+        and lower(trim(coalesce(u.email, p.email))) = lower('rdnv1amaro@gmail.com')
         and p.role = 'admin'
     );
 $$;
@@ -49,9 +44,7 @@ $$;
 revoke all on function public.is_master_admin_user() from public;
 grant execute on function public.is_master_admin_user() to authenticated;
 
--- ---------------------------------------------------------------------------
--- 1. Tabla de desafíos OTP (vinculada al usuario autenticado)
--- ---------------------------------------------------------------------------
+-- ── Tabla OTP ──────────────────────────────────────────────────────────────
 create table if not exists public.admin_otp_challenges (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -67,13 +60,10 @@ create index if not exists admin_otp_challenges_user_created_idx
 
 alter table public.admin_otp_challenges enable row level security;
 
--- Sin acceso directo desde Client API (solo RPC SECURITY DEFINER)
-drop policy if exists "admin_otp_deny_all" on public.admin_otp_challenges;
-
--- ---------------------------------------------------------------------------
--- 3. RPC: registrar OTP hasheado (llamado por POST /api/auth/admin-otp/send)
--- ---------------------------------------------------------------------------
+-- ── RPCs OTP (recrear por si cambió la firma de retorno) ───────────────────
 drop function if exists public.issue_admin_otp_challenge(text, timestamptz);
+drop function if exists public.verify_admin_otp_challenge(text);
+drop function if exists public.get_admin_otp_challenge_status();
 
 create function public.issue_admin_otp_challenge(
   p_otp_hash text,
@@ -102,11 +92,6 @@ begin
   return v_id;
 end;
 $$;
-
--- ---------------------------------------------------------------------------
--- 4. RPC: verificar y consumir OTP (llamado por POST /api/auth/admin-otp/verify)
--- ---------------------------------------------------------------------------
-drop function if exists public.verify_admin_otp_challenge(text);
 
 create function public.verify_admin_otp_challenge(p_otp_hash text)
 returns boolean
@@ -156,12 +141,7 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------------------
--- 5. RPC opcional: estado del desafío activo (depuración admin)
--- ---------------------------------------------------------------------------
-drop function if exists public.get_admin_otp_challenge_status();
-
-create or replace function public.get_admin_otp_challenge_status()
+create function public.get_admin_otp_challenge_status()
 returns table (
   has_active_challenge boolean,
   expires_at timestamptz,
@@ -193,11 +173,7 @@ begin
   end if;
 
   return query
-  select
-    true,
-    v_row.expires_at,
-    v_row.attempts,
-    v_row.expires_at < now();
+  select true, v_row.expires_at, v_row.attempts, v_row.expires_at < now();
 end;
 $$;
 
@@ -213,5 +189,7 @@ notify pgrst, 'reload schema';
 
 commit;
 
--- Verificación:
--- select * from public.admin_otp_challenges order by created_at desc limit 5;
+-- Comprobar (debe devolver 1 fila con role = admin):
+-- select p.email, p.role from public.profiles p
+-- join auth.users u on u.id = p.id
+-- where lower(u.email) = lower('rdnv1amaro@gmail.com');
