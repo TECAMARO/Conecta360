@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { AuthShell } from '@/components/auth/auth-shell'
 import { Button } from '@/components/ui/button'
-import { signInWithEmail } from '@/lib/supabase/auth-service'
+import { signInWithEmail, initiateMasterAdminOtpFlow, requiresMasterAdminOtp } from '@/lib/supabase/auth-service'
 import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 
@@ -27,6 +27,14 @@ function LoginForm() {
     setLoading(true)
     try {
       await signInWithEmail(email, password)
+
+      if (requiresMasterAdminOtp(email)) {
+        await initiateMasterAdminOtpFlow()
+        const adminRedirect = redirectTo.startsWith('/admin') ? redirectTo : '/admin'
+        router.push(`/login/verify-admin?redirect=${encodeURIComponent(adminRedirect)}`)
+        return
+      }
+
       router.push(redirectTo)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.')

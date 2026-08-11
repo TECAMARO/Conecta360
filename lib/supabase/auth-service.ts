@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabaseClient'
+import { isMasterAdminEmail } from '@/lib/admin-auth/constants'
 import { setAuthSession, type AuthSession } from '@/lib/auth'
 import { EMPTY_PROFILE, setUserProfile } from '@/lib/profile'
 import { upsertMyProfile } from '@/lib/supabase/profiles-repository'
@@ -17,6 +18,19 @@ export async function signInWithEmail(email: string, password: string): Promise<
   }
   setAuthSession(session)
   return session
+}
+
+/** Tras login del Admin Maestro: emite OTP y prepara verificación 2FA. */
+export async function initiateMasterAdminOtpFlow(): Promise<void> {
+  const res = await fetch('/api/auth/admin-otp/send', { method: 'POST' })
+  if (!res.ok) {
+    const data = (await res.json()) as { error?: string }
+    throw new Error(data.error ?? 'No se pudo enviar el código de verificación.')
+  }
+}
+
+export function requiresMasterAdminOtp(email: string): boolean {
+  return isMasterAdminEmail(email)
 }
 
 export async function signUpWithEmail(args: {
@@ -80,5 +94,10 @@ export async function restoreSupabaseSession(): Promise<AuthSession | null> {
 }
 
 export async function signOutSupabase(): Promise<void> {
+  try {
+    await fetch('/api/auth/admin-otp/logout', { method: 'POST' })
+  } catch {
+    /* ignore */
+  }
   await supabase.auth.signOut()
 }

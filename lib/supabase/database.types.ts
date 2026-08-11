@@ -153,6 +153,14 @@ export type Database = {
         Args: { p_meeting_id: string }
         Returns: MeetingRow
       }
+      issue_admin_otp_challenge: {
+        Args: { p_otp_hash: string; p_expires_at: string }
+        Returns: undefined
+      }
+      verify_admin_otp_challenge: {
+        Args: { p_otp_hash: string }
+        Returns: boolean
+      }
     }
   }
 }
