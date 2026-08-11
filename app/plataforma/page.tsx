@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppSidebar, type View } from '@/components/app-sidebar'
 import { DashboardView } from '@/components/dashboard-view'
@@ -26,6 +26,7 @@ import {
   buildSentRequestWithReason,
   type AgendaNotification,
 } from '@/lib/meetings'
+import { canAcceptMeetingRequest } from '@/lib/agenda-protection'
 import { saveMeetingEvaluation, type MeetingEvaluationInput } from '@/lib/meeting-evaluation'
 import { clearAuthSession, getAuthSession } from '@/lib/auth'
 import { clearUserProfile, getProfileOrDefault, setUserProfile, type UserProfile } from '@/lib/profile'
@@ -34,15 +35,22 @@ import { fetchDirectoryParticipants } from '@/lib/directory'
 import { setParticipantRegistry, mergeParticipantRegistry } from '@/lib/participant-registry'
 import {
   cancelPendingInSlotExcept,
+  cancelMeetingIfPending,
+  confirmMeetingIfPending,
   fetchAllActiveMeetings,
   fetchOccupancyForBlock,
   fetchOutgoingConfirmedCount,
   fetchUserMeetings,
   insertMeetingRequest,
   rebouncePendingSentOverLimit,
+  rejectMeetingIfPending,
   saveMeetingEvaluationToDb,
-  updateMeeting,
 } from '@/lib/supabase/meetings-repository'
+import {
+  meetingAcceptCancelledBySenderMessage,
+  meetingCancelAlreadyConfirmedMessage,
+  MEETING_STALE_REQUEST_MESSAGE,
+} from '@/lib/supabase/meeting-status'
 import { isOutgoingSendBlocked } from '@/lib/meeting-outgoing-limit'
 import { getEventSlotById } from '@/lib/meeting-slots'
 import { fetchProfileDisplayName, fetchMyProfile } from '@/lib/supabase/profiles-repository'
@@ -56,8 +64,9 @@ import {
   sendMessage as sendMessageToDb,
 } from '@/lib/supabase/messages-repository'
 import { supabase } from '@/src/lib/supabaseClient'
+import { useMeetingsRealtime } from '@/lib/hooks/use-meetings-realtime'
 import { cn } from '@/lib/utils'
-import { Menu, X, CircleCheck } from 'lucide-react'
+import { Menu, X, CircleCheck, TriangleAlert } from 'lucide-react'
 
 const VIEW_PARAM: Record<string, View> = {
   inicio: 'inicio',
@@ -130,9 +139,14 @@ function PlatformApp() {
   const [selected, setSelected] = useState<Participant | null>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [notifications, setNotifications] = useState<AgendaNotification[]>([])
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; variant: 'success' | 'warning' } | null>(
+    null,
+  )
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [messagesActiveId, setMessagesActiveId] = useState<string | null>(null)
+  /** Blocks double-submit while accept/reject awaits Supabase confirmation. */
+  const [respondingMeetingId, setRespondingMeetingId] = useState<string | null>(null)
+  const toastTimeoutRef = useRef<number | null>(null)
 
   async function reloadMessaging(activeUserId: string, options?: { silent?: boolean }) {
     if (!options?.silent) setMessagesLoading(true)
@@ -156,15 +170,22 @@ function PlatformApp() {
     }
   }
 
-  async function reloadMeetings(activeUserId: string) {
+  async function reloadMeetings(activeUserId: string, options?: { silent?: boolean }) {
     const [{ appointments: userAppts }, globalOccupancy] = await Promise.all([
       fetchUserMeetings(activeUserId),
       fetchAllActiveMeetings(),
     ])
     setAppointments(userAppts)
     setSlotOccupancy(globalOccupancy)
-    await reloadMessaging(activeUserId)
+    await reloadMessaging(activeUserId, { silent: options?.silent })
   }
+
+  const syncMeetingsFromRealtime = useCallback(() => {
+    if (!userId) return
+    void reloadMeetings(userId, { silent: true })
+  }, [userId])
+
+  useMeetingsRealtime(userId, syncMeetingsFromRealtime, { enabled: authReady })
 
   useEffect(() => {
     async function bootstrap() {
@@ -212,16 +233,6 @@ function PlatformApp() {
 
     const channel = supabase
       .channel(`platform-messaging-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'meetings', filter: `requester_id=eq.${userId}` },
-        refreshMessaging,
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'meetings', filter: `recipient_id=eq.${userId}` },
-        refreshMessaging,
-      )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${userId}` },
@@ -302,9 +313,19 @@ function PlatformApp() {
   const agendaCount = agendaSidebarBadgeCount(appointments)
   const outgoingSendBlocked = isOutgoingSendBlocked(appointments)
 
-  function showToast(msg: string) {
-    setToast(msg)
-    window.setTimeout(() => setToast(null), 3500)
+  function showToast(msg: string, variant: 'success' | 'warning' = 'success') {
+    if (toastTimeoutRef.current != null) {
+      window.clearTimeout(toastTimeoutRef.current)
+    }
+    setToast({ message: msg, variant })
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToast(null)
+      toastTimeoutRef.current = null
+    }, 3500)
+  }
+
+  function showWarningToast(msg: string) {
+    showToast(msg, 'warning')
   }
 
   function openRequest(participant: Participant) {
@@ -381,61 +402,105 @@ function PlatformApp() {
     }
   }
 
+  async function resolveParticipantCompanyName(participantId: string): Promise<string> {
+    return (
+      participantById(participantId)?.name ??
+      (await fetchProfileDisplayName(participantId)) ??
+      'la otra empresa'
+    )
+  }
+
+  async function handleStaleMeeting(
+    activeUserId: string,
+    meetingId: string,
+    message = MEETING_STALE_REQUEST_MESSAGE,
+  ) {
+    showWarningToast(message)
+    setAppointments((prev) => prev.filter((a) => a.id !== meetingId))
+    try {
+      await reloadMeetings(activeUserId)
+    } catch {
+      /* local filter already removed the stale card */
+    }
+  }
+
   async function handleAcceptRequest(id: string) {
     const activeUserId = userId ?? getAuthSession()?.userId
-    if (!activeUserId) return
+    if (!activeUserId || respondingMeetingId) return
 
     const target = appointments.find((appt) => appt.id === id)
-    const requesterId =
-      target?.requesterId ??
-      (target?.direction === 'received' ? target.participantId : undefined)
+    if (!target) return
 
-    let requesterConfirmed = 0
-    if (requesterId) {
-      try {
-        requesterConfirmed = await fetchOutgoingConfirmedCount(requesterId)
-      } catch {
-        requesterConfirmed = 0
-      }
-    }
-
-    const result = acceptMeetingRequest(
-      appointments,
-      slotOccupancy,
-      id,
-      requesterConfirmed,
-    )
-    if (result.error) {
-      showToast(result.error)
-      return
-    }
-
-    const accepted = result.appointments.find((a) => a.id === id)
-    if (!accepted) return
-
-    const respondedAt = new Date().toISOString()
+    setRespondingMeetingId(id)
 
     try {
-      await updateMeeting(id, { status: 'confirmada' })
-      await cancelPendingInSlotExcept(accepted.slotId, id)
+      const requesterId =
+        target.requesterId ??
+        (target.direction === 'received' ? target.participantId : undefined)
+
+      let requesterConfirmed = 0
+      if (requesterId) {
+        try {
+          requesterConfirmed = await fetchOutgoingConfirmedCount(requesterId)
+        } catch {
+          requesterConfirmed = 0
+        }
+      }
+
+      const validation = canAcceptMeetingRequest(
+        appointments,
+        slotOccupancy,
+        id,
+        requesterConfirmed,
+      )
+      if (!validation.ok) {
+        showToast(validation.message)
+        return
+      }
+
+      const dbResult = await confirmMeetingIfPending(id)
+
+      const senderId = target.requesterId ?? target.participantId
+      const senderName = await resolveParticipantCompanyName(senderId)
+
+      if (!dbResult.ok) {
+        if (dbResult.stale) {
+          showWarningToast(
+            dbResult.staleReason === 'cancelled_by_sender'
+              ? meetingAcceptCancelledBySenderMessage(senderName)
+              : MEETING_STALE_REQUEST_MESSAGE,
+          )
+        } else {
+          showToast(dbResult.error)
+        }
+        await reloadMeetings(activeUserId)
+        return
+      }
+
+      const respondedAt = new Date().toISOString()
+      const crossNotifications = acceptMeetingRequest(
+        appointments,
+        slotOccupancy,
+        id,
+        requesterConfirmed,
+      ).notifications
+
+      await cancelPendingInSlotExcept(target.slotId, id)
       if (requesterId) {
         await rebouncePendingSentOverLimit(requesterId)
       }
       await reloadMeetings(activeUserId)
 
-      if (result.notifications.length > 0) {
-        setNotifications((prev) => [...result.notifications, ...prev])
-      }
+      const name = await resolveParticipantCompanyName(target.participantId)
 
-      const name =
-        participantById(accepted.participantId)?.name ??
-        (await fetchProfileDisplayName(accepted.participantId)) ??
-        'participante'
+      if (crossNotifications.length > 0) {
+        setNotifications((prev) => [...crossNotifications, ...prev])
+      }
 
       setNotifications((prev) => [
         {
           id: `n-accept-${Date.now()}`,
-          message: `✅ Confirmaste la reunión con ${name} para el ${accepted.day} a las ${accepted.time} (${accepted.table}).`,
+          message: `✅ Confirmaste la reunión con ${name} para el ${target.day} a las ${target.time} (${target.table}).`,
           createdAt: respondedAt,
           read: false,
         },
@@ -444,18 +509,35 @@ function PlatformApp() {
       showToast(`Reunión confirmada con ${name}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'No se pudo confirmar la reunión.')
+      try {
+        await reloadMeetings(activeUserId)
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setRespondingMeetingId(null)
     }
   }
 
   async function handleRejectRequest(id: string) {
     const activeUserId = userId ?? getAuthSession()?.userId
-    if (!activeUserId) return
+    if (!activeUserId || respondingMeetingId) return
 
     const rejected = appointments.find((a) => a.id === id)
-    const respondedAt = new Date().toISOString()
+    setRespondingMeetingId(id)
 
     try {
-      await updateMeeting(id, { status: 'rechazada' })
+      const dbResult = await rejectMeetingIfPending(id)
+      if (!dbResult.ok) {
+        if (dbResult.stale) {
+          await handleStaleMeeting(activeUserId, id)
+        } else {
+          showToast(dbResult.error)
+        }
+        return
+      }
+
+      const respondedAt = new Date().toISOString()
       await reloadMeetings(activeUserId)
 
       if (rejected) {
@@ -476,20 +558,54 @@ function PlatformApp() {
       showToast('Solicitud rechazada')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'No se pudo rechazar la solicitud.')
+      try {
+        await reloadMeetings(activeUserId)
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setRespondingMeetingId(null)
     }
   }
 
   async function handleCancelSent(id: string) {
     const activeUserId = userId ?? getAuthSession()?.userId
-    if (!activeUserId) return
+    if (!activeUserId || respondingMeetingId) return
 
-    const respondedAt = new Date().toISOString()
+    const target = appointments.find((appt) => appt.id === id)
+
+    setRespondingMeetingId(id)
     try {
-      await updateMeeting(id, { status: 'cancelada_enviada' })
+      const dbResult = await cancelMeetingIfPending(id)
+
+      const recipientId = target?.participantId ?? ''
+      const recipientName = await resolveParticipantCompanyName(recipientId)
+
+      if (!dbResult.ok) {
+        if (dbResult.stale) {
+          showWarningToast(
+            dbResult.staleReason === 'already_confirmed'
+              ? meetingCancelAlreadyConfirmedMessage(recipientName)
+              : MEETING_STALE_REQUEST_MESSAGE,
+          )
+        } else {
+          showToast(dbResult.error)
+        }
+        await reloadMeetings(activeUserId)
+        return
+      }
+
       await reloadMeetings(activeUserId)
       showToast('Solicitud cancelada')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'No se pudo cancelar la solicitud.')
+      try {
+        await reloadMeetings(activeUserId)
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setRespondingMeetingId(null)
     }
   }
 
@@ -712,6 +828,7 @@ function PlatformApp() {
               appointments={appointments}
               conversations={conversations}
               notifications={notifications}
+              respondingMeetingId={respondingMeetingId}
               onOpenConversation={openConversation}
               onAccept={(id) => void handleAcceptRequest(id)}
               onReject={(id) => void handleRejectRequest(id)}
@@ -761,9 +878,20 @@ function PlatformApp() {
         )}
       >
         {toast && (
-          <div className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg">
-            <CircleCheck className="size-4" aria-hidden="true" />
-            {toast}
+          <div
+            className={cn(
+              'flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-lg',
+              toast.variant === 'warning'
+                ? 'bg-amber-600 text-white'
+                : 'bg-primary text-primary-foreground',
+            )}
+          >
+            {toast.variant === 'warning' ? (
+              <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <CircleCheck className="size-4 shrink-0" aria-hidden="true" />
+            )}
+            {toast.message}
           </div>
         )}
       </div>

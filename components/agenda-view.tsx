@@ -304,6 +304,7 @@ export function AgendaView({
   appointments,
   conversations,
   notifications,
+  respondingMeetingId = null,
   onOpenConversation,
   onAccept,
   onReject,
@@ -315,6 +316,8 @@ export function AgendaView({
   appointments: Appointment[]
   conversations: Conversation[]
   notifications: AgendaNotification[]
+  /** Disables accept/reject while awaiting Supabase confirmation. */
+  respondingMeetingId?: string | null
   onOpenConversation: (participantId: string, meetingId?: string) => void
   onAccept: (id: string) => void
   onReject: (id: string) => void
@@ -535,24 +538,33 @@ export function AgendaView({
               />
             ) : (
               <div className="space-y-3">
-                {received.map((appt) => (
+                {received.map((appt) => {
+                  const isResponding = respondingMeetingId === appt.id
+                  return (
                   <AppointmentCard key={appt.id} appointment={appt}>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" className="gap-1.5" onClick={() => onAccept(appt.id)}>
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={isResponding || !!respondingMeetingId}
+                        onClick={() => onAccept(appt.id)}
+                      >
                         <CircleCheck className="size-4" aria-hidden="true" />
-                        Aceptar
+                        {isResponding ? 'Procesando…' : 'Aceptar'}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                        disabled={isResponding || !!respondingMeetingId}
                         onClick={() => onReject(appt.id)}
                       >
-                        Rechazar
+                        {isResponding ? 'Procesando…' : 'Rechazar'}
                       </Button>
                     </div>
                   </AppointmentCard>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>
@@ -568,19 +580,23 @@ export function AgendaView({
               />
             ) : (
               <div className="space-y-3">
-                {sent.map((appt) => (
+                {sent.map((appt) => {
+                  const isResponding = respondingMeetingId === appt.id
+                  return (
                   <AppointmentCard key={appt.id} appointment={appt}>
                     <div className="mt-4">
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={isResponding || !!respondingMeetingId}
                         onClick={() => onCancelSent(appt.id)}
                       >
-                        Cancelar solicitud
+                        {isResponding ? 'Procesando…' : 'Cancelar solicitud'}
                       </Button>
                     </div>
                   </AppointmentCard>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>

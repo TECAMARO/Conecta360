@@ -1,11 +1,12 @@
 import { supabase } from '@/src/lib/supabaseClient'
-import type { Appointment } from '@/lib/data'
+import type { Appointment, AppointmentStatus } from '@/lib/data'
 import type { MeetingEvaluation } from '@/lib/meeting-evaluation'
 import { meetingRowToAppointment } from '@/lib/supabase/mappers'
 import type { MeetingRow } from '@/lib/supabase/database.types'
 import {
   ACTIVE_MEETING_DB_STATUSES,
   MEETING_DB_STATUS_PENDING,
+  PENDING_MEETING_DB_STATUSES,
   appMeetingStatusToDb,
 } from '@/lib/supabase/meeting-status'
 import { meetingDayAndTimeFromSlotId, slotIdFromMeetingDayAndTime } from '@/lib/meeting-slots'
@@ -319,6 +320,274 @@ export async function updateMeeting(
   const { error } = await supabase.from('meetings').update(dbPatch).eq('id', meetingId)
   if (error) throw new Error(error.message)
 }
+
+export type MeetingStaleReason =
+  | 'already_confirmed'
+  | 'already_resolved'
+  | 'cancelled_by_sender'
+
+export type PendingMeetingUpdateResult =
+  | { ok: true; id: string }
+  | { ok: false; stale: true; staleReason?: MeetingStaleReason }
+  | { ok: false; stale: false; error: string }
+
+const CONFIRMED_DB_STATUSES = new Set(['confirmada', 'confirmed'])
+const REJECTED_DB_STATUSES = new Set(['rechazada', 'rejected'])
+const CANCELLED_SENT_DB_STATUSES = new Set([
+  'cancelada_enviada',
+  'cancelled',
+  'canceled',
+])
+
+function isRpcNotDeployed(error: { code?: string; message?: string }): boolean {
+  const code = error.code ?? ''
+  const msg = error.message ?? ''
+  return (
+    code === '42883' ||
+    code === 'PGRST202' ||
+    /function.*does not exist/i.test(msg) ||
+    /could not find the function/i.test(msg)
+  )
+}
+
+async function classifyMeetingStaleReason(
+  meetingId: string,
+): Promise<MeetingStaleReason> {
+  const status = await fetchMeetingDbStatus(meetingId)
+  if (!status) return 'already_resolved'
+
+  if (isConfirmedDbStatus(status)) return 'already_confirmed'
+  if (isCancelledSentDbStatus(status)) return 'cancelled_by_sender'
+  return 'already_resolved'
+}
+
+async function staleMeetingResult(meetingId: string): Promise<PendingMeetingUpdateResult> {
+  return {
+    ok: false,
+    stale: true,
+    staleReason: await classifyMeetingStaleReason(meetingId),
+  }
+}
+
+function isPendingDbStatus(status: string | null | undefined): boolean {
+  if (!status) return false
+  return (
+    PENDING_MEETING_DB_STATUSES.includes(status as (typeof PENDING_MEETING_DB_STATUSES)[number]) ||
+    dbMeetingStatusToApp(status) === 'pendiente'
+  )
+}
+
+function isConfirmedDbStatus(status: string | null | undefined): boolean {
+  if (!status) return false
+  return CONFIRMED_DB_STATUSES.has(status) || dbMeetingStatusToApp(status) === 'confirmada'
+}
+
+function isCancelledSentDbStatus(status: string | null | undefined): boolean {
+  if (!status) return false
+  return (
+    CANCELLED_SENT_DB_STATUSES.has(status) ||
+    dbMeetingStatusToApp(status) === 'cancelada_enviada'
+  )
+}
+
+/** Reads authoritative status (RPC security definer, then direct SELECT fallback). */
+export async function fetchMeetingDbStatus(meetingId: string): Promise<string | null> {
+  const { data: rpcStatus, error: rpcError } = await supabase.rpc(
+    'get_meeting_status_for_participant',
+    { p_meeting_id: meetingId },
+  )
+
+  if (!rpcError && typeof rpcStatus === 'string') {
+    return rpcStatus
+  }
+
+  const { data, error } = await supabase
+    .from('meetings')
+    .select('status')
+    .eq('id', meetingId)
+    .maybeSingle()
+
+  if (error || !data?.status) return null
+  return data.status
+}
+
+async function runConfirmMutation(meetingId: string): Promise<string | null> {
+  const { error } = await supabase.rpc('confirm_meeting_if_pending', {
+    p_meeting_id: meetingId,
+  })
+
+  if (!error) return null
+  if (!isRpcNotDeployed(error)) return error.message
+
+  const { error: updateError } = await supabase
+    .from('meetings')
+    .update({ status: appMeetingStatusToDb('confirmada') })
+    .eq('id', meetingId)
+    .in('status', [...PENDING_MEETING_DB_STATUSES])
+
+  if (updateError) return updateError.message
+  return null
+}
+
+async function runCancelMutation(meetingId: string): Promise<string | null> {
+  const { error } = await supabase.rpc('cancel_meeting_if_pending', {
+    p_meeting_id: meetingId,
+  })
+
+  if (!error) return null
+  if (!isRpcNotDeployed(error)) return error.message
+
+  const { error: updateError } = await supabase
+    .from('meetings')
+    .update({ status: appMeetingStatusToDb('cancelada_enviada') })
+    .eq('id', meetingId)
+    .in('status', [...PENDING_MEETING_DB_STATUSES])
+
+  if (updateError) return updateError.message
+  return null
+}
+
+export async function verifyMeetingDbStatus(
+  meetingId: string,
+  expected: Extract<AppointmentStatus, 'confirmada' | 'rechazada' | 'cancelada_enviada'>,
+): Promise<boolean> {
+  const status = await fetchMeetingDbStatus(meetingId)
+  if (!status) return false
+
+  const appStatus = dbMeetingStatusToApp(status)
+  if (appStatus === expected) return true
+
+  if (expected === 'confirmada' && CONFIRMED_DB_STATUSES.has(status)) return true
+  if (expected === 'rechazada' && REJECTED_DB_STATUSES.has(status)) return true
+  if (expected === 'cancelada_enviada' && CANCELLED_SENT_DB_STATUSES.has(status)) {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Updates status only if the row is still pending (double lock with RLS + trigger).
+ * Never throws on 0 rows — returns `{ ok: false, stale: true }` instead.
+ */
+export async function updateMeetingStatusIfPending(
+  meetingId: string,
+  status: Extract<AppointmentStatus, 'confirmada' | 'rechazada'>,
+): Promise<PendingMeetingUpdateResult> {
+  const dbStatus = appMeetingStatusToDb(status)
+
+  const { data, error } = await supabase
+    .from('meetings')
+    .update({ status: dbStatus })
+    .eq('id', meetingId)
+    .in('status', [...PENDING_MEETING_DB_STATUSES])
+    .select('id, status')
+
+  if (error) {
+    return { ok: false, stale: false, error: error.message }
+  }
+
+  if (!data || data.length === 0) {
+    return staleMeetingResult(meetingId)
+  }
+
+  const verified = await verifyMeetingDbStatus(meetingId, status)
+  if (!verified) {
+    return staleMeetingResult(meetingId)
+  }
+
+  return { ok: true, id: data[0].id as string }
+}
+
+/** Confirm only if DB status transitions pendiente → confirmada. Ignores RPC payload. */
+export async function confirmMeetingIfPending(
+  meetingId: string,
+): Promise<PendingMeetingUpdateResult> {
+  const before = await fetchMeetingDbStatus(meetingId)
+
+  if (before && isCancelledSentDbStatus(before)) {
+    return { ok: false, stale: true, staleReason: 'cancelled_by_sender' }
+  }
+  if (before && isConfirmedDbStatus(before)) {
+    return { ok: false, stale: true, staleReason: 'already_confirmed' }
+  }
+  if (before && !isPendingDbStatus(before)) {
+    return { ok: false, stale: true, staleReason: 'already_resolved' }
+  }
+
+  const mutationError = await runConfirmMutation(meetingId)
+  if (mutationError) {
+    return { ok: false, stale: false, error: mutationError }
+  }
+
+  const after = await fetchMeetingDbStatus(meetingId)
+  if (after && isConfirmedDbStatus(after)) {
+    return { ok: true, id: meetingId }
+  }
+  if (after && isCancelledSentDbStatus(after)) {
+    return { ok: false, stale: true, staleReason: 'cancelled_by_sender' }
+  }
+
+  return staleMeetingResult(meetingId)
+}
+
+/** Reject via RPC (preferred) or atomic UPDATE fallback. */
+export async function rejectMeetingIfPending(
+  meetingId: string,
+): Promise<PendingMeetingUpdateResult> {
+  const { data, error } = await supabase.rpc('reject_meeting_if_pending', {
+    p_meeting_id: meetingId,
+  })
+
+  if (!error) {
+    if (!data) return staleMeetingResult(meetingId)
+    const row = data as MeetingRow
+    const verified = await verifyMeetingDbStatus(meetingId, 'rechazada')
+    if (!verified) return staleMeetingResult(meetingId)
+    return { ok: true, id: row.id }
+  }
+
+  if (!isRpcNotDeployed(error)) {
+    return { ok: false, stale: false, error: error.message }
+  }
+
+  return updateMeetingStatusIfPending(meetingId, 'rechazada')
+}
+
+/** Cancel sent request only if DB status transitions pendiente → cancelada_enviada. */
+export async function cancelMeetingIfPending(
+  meetingId: string,
+): Promise<PendingMeetingUpdateResult> {
+  const before = await fetchMeetingDbStatus(meetingId)
+
+  if (before && isConfirmedDbStatus(before)) {
+    return { ok: false, stale: true, staleReason: 'already_confirmed' }
+  }
+  if (before && isCancelledSentDbStatus(before)) {
+    return { ok: true, id: meetingId }
+  }
+  if (before && !isPendingDbStatus(before)) {
+    return { ok: false, stale: true, staleReason: 'already_resolved' }
+  }
+
+  const mutationError = await runCancelMutation(meetingId)
+  if (mutationError) {
+    return { ok: false, stale: false, error: mutationError }
+  }
+
+  const after = await fetchMeetingDbStatus(meetingId)
+  if (after && isCancelledSentDbStatus(after)) {
+    return { ok: true, id: meetingId }
+  }
+  if (after && isConfirmedDbStatus(after)) {
+    return { ok: false, stale: true, staleReason: 'already_confirmed' }
+  }
+
+  return staleMeetingResult(meetingId)
+}
+
+/** Alias semántico para el handler de cancelación del emisor. */
+export const cancelMeetingRequest = cancelMeetingIfPending
 
 export async function updateMeetingsBatch(
   updates: { id: string; patch: Partial<Pick<Appointment, 'status'>> }[],
