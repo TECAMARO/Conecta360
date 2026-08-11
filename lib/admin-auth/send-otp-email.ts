@@ -7,21 +7,30 @@ export type SendAdminOtpResult = {
   devCode?: string
 }
 
+function env(name: string): string | undefined {
+  const value = process.env[name]?.trim()
+  return value ? value : undefined
+}
+
 function smtpConfigured(): boolean {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+  return Boolean(env('SMTP_HOST') && env('SMTP_USER') && env('SMTP_PASS'))
 }
 
 function buildTransport() {
-  const port = Number(process.env.SMTP_PORT ?? 587)
+  const port = Number(env('SMTP_PORT') ?? 587)
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: env('SMTP_HOST'),
     port,
     secure: port === 465,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: env('SMTP_USER'),
+      pass: env('SMTP_PASS'),
     },
   })
+}
+
+function isLocalDevWithoutSmtp(): boolean {
+  return process.env.NODE_ENV !== 'production' && !smtpConfigured()
 }
 
 /**
@@ -68,8 +77,8 @@ export async function sendAdminOtpEmail(code: string): Promise<SendAdminOtpResul
 
   if (smtpConfigured()) {
     const from =
-      process.env.SMTP_FROM?.trim() ||
-      process.env.SMTP_USER ||
+      env('SMTP_FROM') ||
+      env('SMTP_USER') ||
       `Conecta360 <${MASTER_ADMIN_EMAIL}>`
 
     const transport = buildTransport()
@@ -77,12 +86,13 @@ export async function sendAdminOtpEmail(code: string): Promise<SendAdminOtpResul
     return { sentTo: to }
   }
 
-  if (process.env.NODE_ENV === 'development') {
+  if (isLocalDevWithoutSmtp()) {
     console.warn(`[ADMIN OTP · DEV] Código ${code} para ${to} (SMTP no configurado)`)
     return { sentTo: to, devCode: code }
   }
 
+  const missing = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter((key) => !env(key))
   throw new Error(
-    'SMTP no configurado. Añade SMTP_HOST, SMTP_USER y SMTP_PASS en .env.local (usa el mismo SMTP de Supabase → Authentication → SMTP Settings).',
+    `SMTP no configurado (faltan: ${missing.join(', ')}). Añádelas en .env.local y reinicia el servidor (npm run dev). Usa los mismos valores de Supabase → Authentication → SMTP Settings.`,
   )
 }
