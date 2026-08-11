@@ -39,8 +39,6 @@ export function rowToBrochure(row: ProfileRow): CorporateBrochure | null {
     brochureUrl,
     uploadedAt: row.updated_at ?? new Date().toISOString(),
     storagePath: storagePathFromPublicUrl(brochureUrl),
-    publicUrl: brochureUrl,
-    dataUrl: brochureUrl,
   }
 }
 
@@ -72,8 +70,6 @@ export async function uploadBrochure(file: File): Promise<CorporateBrochure> {
     brochureUrl,
     uploadedAt: new Date().toISOString(),
     storagePath,
-    publicUrl: brochureUrl,
-    dataUrl: brochureUrl,
   }
 }
 

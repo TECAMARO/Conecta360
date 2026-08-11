@@ -28,6 +28,9 @@ export function validateBrochureFile(file: File): string | null {
   return null
 }
 
+/**
+ * @deprecated Usa uploadBrochure (Supabase Storage). No guardar base64 en localStorage.
+ */
 export function readBrochureFile(file: File): Promise<CorporateBrochure> {
   return new Promise((resolve, reject) => {
     const error = validateBrochureFile(file)

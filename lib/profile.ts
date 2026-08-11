@@ -32,6 +32,46 @@ export const EMPTY_PROFILE: UserProfile = {
   brochure: null,
 }
 
+function isDataUrl(value: string): boolean {
+  return value.startsWith('data:')
+}
+
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value)
+}
+
+/** Evita guardar PDFs/fotos en base64 en localStorage (cuota ~5 MB). */
+function brochureForLocalStorage(
+  brochure: CorporateBrochure | null | undefined,
+): CorporateBrochure | null {
+  if (!brochure) return null
+
+  const url = brochure.brochureUrl || brochure.publicUrl || brochure.dataUrl || ''
+  if (!url || isDataUrl(url)) return null
+
+  return {
+    fileName: brochure.fileName,
+    fileSize: brochure.fileSize,
+    brochureUrl: url,
+    uploadedAt: brochure.uploadedAt,
+    storagePath: brochure.storagePath,
+  }
+}
+
+function photoUrlForLocalStorage(photoUrl: string | null | undefined): string | null {
+  if (!photoUrl) return null
+  if (isDataUrl(photoUrl)) return null
+  return isHttpUrl(photoUrl) ? photoUrl : null
+}
+
+function profileForLocalStorage(profile: UserProfile): UserProfile {
+  return {
+    ...profile,
+    photoUrl: photoUrlForLocalStorage(profile.photoUrl),
+    brochure: brochureForLocalStorage(profile.brochure),
+  }
+}
+
 function normalizeProfile(raw: Record<string, unknown>): UserProfile {
   return {
     ...EMPTY_PROFILE,
@@ -46,9 +86,15 @@ function normalizeProfile(raw: Record<string, unknown>): UserProfile {
       ? raw.seeking.filter((x): x is string => typeof x === 'string')
       : [],
     isPublished: raw.isPublished === true,
-    photoUrl: typeof raw.photoUrl === 'string' ? raw.photoUrl : null,
+    photoUrl: normalizePhotoUrl(raw.photoUrl),
     brochure: normalizeBrochure(raw.brochure),
   }
+}
+
+function normalizePhotoUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw) return null
+  if (isDataUrl(raw)) return null
+  return raw
 }
 
 function normalizeBrochure(raw: unknown): CorporateBrochure | null {
@@ -66,18 +112,17 @@ function normalizeBrochure(raw: unknown): CorporateBrochure | null {
           ? record.dataUrl
           : null
 
-  if (fileName && fileSize !== null && uploadedAt && brochureUrl) {
-    return {
-      fileName,
-      fileSize,
-      brochureUrl,
-      uploadedAt,
-      storagePath: typeof record.storagePath === 'string' ? record.storagePath : undefined,
-      publicUrl: typeof record.publicUrl === 'string' ? record.publicUrl : brochureUrl,
-      dataUrl: typeof record.dataUrl === 'string' ? record.dataUrl : brochureUrl,
-    }
+  if (!fileName || fileSize === null || !uploadedAt || !brochureUrl || isDataUrl(brochureUrl)) {
+    return null
   }
-  return null
+
+  return {
+    fileName,
+    fileSize,
+    brochureUrl,
+    uploadedAt,
+    storagePath: typeof record.storagePath === 'string' ? record.storagePath : undefined,
+  }
 }
 
 export function getUserProfile(): UserProfile | null {
@@ -85,7 +130,16 @@ export function getUserProfile(): UserProfile | null {
   const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
   if (!raw) return null
   try {
-    return normalizeProfile(JSON.parse(raw) as Record<string, unknown>)
+    const profile = normalizeProfile(JSON.parse(raw) as Record<string, unknown>)
+    const lightweight = profileForLocalStorage(profile)
+    if (JSON.stringify(lightweight) !== raw) {
+      try {
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(lightweight))
+      } catch {
+        /* ignore migration write errors */
+      }
+    }
+    return profile
   } catch {
     return null
   }
@@ -93,7 +147,25 @@ export function getUserProfile(): UserProfile | null {
 
 export function setUserProfile(profile: UserProfile) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile))
+  const lightweight = profileForLocalStorage(profile)
+  try {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(lightweight))
+    return
+  } catch {
+    /* quota exceeded — retry without optional heavy fields */
+  }
+
+  try {
+    localStorage.setItem(
+      PROFILE_STORAGE_KEY,
+      JSON.stringify({ ...lightweight, brochure: null, photoUrl: null }),
+    )
+    console.warn(
+      '[conecta360] Perfil guardado sin foto/brochure en caché local (cuota de almacenamiento).',
+    )
+  } catch (err) {
+    console.warn('[conecta360] No se pudo guardar el perfil en localStorage.', err)
+  }
 }
 
 export function getProfileOrDefault(): UserProfile {
