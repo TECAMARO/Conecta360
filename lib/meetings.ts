@@ -179,7 +179,10 @@ export function filterPendingSent(appointments: Appointment[]): Appointment[] {
 
 export function filterCancelledMeetings(appointments: Appointment[]): Appointment[] {
   return appointments.filter(
-    (a) => a.status === 'rechazada' || a.status === 'cancelada_enviada',
+    (a) =>
+      a.status === 'rechazada' ||
+      a.status === 'cancelada_enviada' ||
+      a.status === 'cancelada_admin',
   )
 }
 

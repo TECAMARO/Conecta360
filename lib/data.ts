@@ -102,6 +102,7 @@ export type AppointmentStatus =
   | 'anulada_por_cruce'
   | 'anulada_por_limite'
   | 'completada'
+  | 'cancelada_admin'
 
 export type AppointmentDirection = 'sent' | 'received'
 

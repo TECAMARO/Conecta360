@@ -30,6 +30,7 @@ export type Database = {
           brochure_url: string | null
           created_at: string | null
           updated_at: string | null
+          role: string | null
         }
         Insert: {
           id: string
@@ -47,6 +48,7 @@ export type Database = {
           brochure_url?: string | null
           created_at?: string | null
           updated_at?: string | null
+          role?: string | null
         }
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
       }
@@ -145,6 +147,10 @@ export type Database = {
           p_slot_time: string
           p_proposal?: string
         }
+        Returns: MeetingRow
+      }
+      admin_cancel_meeting: {
+        Args: { p_meeting_id: string }
         Returns: MeetingRow
       }
     }
