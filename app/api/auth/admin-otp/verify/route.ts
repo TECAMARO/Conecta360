@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server'
-import { isMasterAdminEmail } from '@/lib/admin-auth/constants'
+import { MASTER_ADMIN_EMAIL, isMasterAdminEmail } from '@/lib/admin-auth/constants'
 import {
   admin2faCookieOptions,
   buildAdmin2faCookieValue,
 } from '@/lib/admin-auth/otp-cookie'
-import { hashAdminOtp } from '@/lib/admin-auth/otp-hash'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { code?: string }
-    const code = body.code?.trim()
+    const code = body.code?.trim().replace(/\s/g, '')
 
-    if (!code || !/^\d{4}$/.test(code)) {
-      return NextResponse.json({ error: 'Ingresa un código válido de 4 dígitos.' }, { status: 400 })
+    if (!code || !/^\d{6,8}$/.test(code)) {
+      return NextResponse.json(
+        { error: 'Ingresa el código numérico enviado a tu correo.' },
+        { status: 400 },
+      )
     }
 
     const supabase = await createServerSupabaseClient()
@@ -35,17 +37,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
     }
 
-    const otpHash = hashAdminOtp(code, user.id)
-
-    const { data: verified, error: rpcError } = await supabase.rpc('verify_admin_otp_challenge', {
-      p_otp_hash: otpHash,
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: MASTER_ADMIN_EMAIL,
+      token: code,
+      type: 'email',
     })
 
-    if (rpcError) {
-      return NextResponse.json({ error: rpcError.message }, { status: 500 })
-    }
-
-    if (!verified) {
+    if (verifyError) {
       return NextResponse.json(
         { error: 'Código incorrecto o expirado. Solicita uno nuevo.' },
         { status: 401 },

@@ -1,7 +1,8 @@
 import { ADMIN_2FA_COOKIE, ADMIN_2FA_TTL_MS } from '@/lib/admin-auth/constants'
+import { getAdminOtpSecret } from '@/lib/admin-auth/otp-secret'
 
 function cookieSecret(): string {
-  return process.env.ADMIN_OTP_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'dev-insecure-secret'
+  return getAdminOtpSecret()
 }
 
 async function hmacHex(message: string): Promise<string> {

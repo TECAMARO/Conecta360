@@ -3,13 +3,17 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
+import { MASTER_ADMIN_EMAIL } from '@/lib/admin-auth/constants'
 import { AuthShell } from '@/components/auth/auth-shell'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Loader2, ShieldCheck } from 'lucide-react'
 
+const OTP_MIN_LENGTH = 6
+const OTP_MAX_LENGTH = 8
+
 const inputClass =
-  'w-full rounded-lg border border-[#dde8d8] bg-white px-3.5 py-2.5 text-center text-2xl font-semibold tracking-[0.5em] text-[#1a3c34] outline-none transition-colors focus:border-[#8ac441] focus:ring-2 focus:ring-[#8ac441]/25'
+  'w-full rounded-lg border border-[#dde8d8] bg-white px-3.5 py-2.5 text-center text-2xl font-semibold tracking-[0.35em] text-[#1a3c34] outline-none transition-colors focus:border-[#8ac441] focus:ring-2 focus:ring-[#8ac441]/25'
 
 function VerifyAdminForm() {
   const router = useRouter()
@@ -19,6 +23,7 @@ function VerifyAdminForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
+  const [resendOk, setResendOk] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -28,6 +33,7 @@ function VerifyAdminForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setResendOk(null)
     setLoading(true)
 
     try {
@@ -56,13 +62,15 @@ function VerifyAdminForm() {
 
   async function handleResend() {
     setError(null)
+    setResendOk(null)
     setResending(true)
     try {
       const res = await fetch('/api/auth/admin-otp/send', { method: 'POST' })
+      const data = (await res.json()) as { error?: string; sentTo?: string }
       if (!res.ok) {
-        const data = (await res.json()) as { error?: string }
         throw new Error(data.error ?? 'No se pudo reenviar el código.')
       }
+      setResendOk(`Nuevo código enviado a ${data.sentTo ?? MASTER_ADMIN_EMAIL}`)
       setCode('')
       inputRef.current?.focus()
     } catch (err) {
@@ -72,22 +80,31 @@ function VerifyAdminForm() {
     }
   }
 
+  const codeReady = code.length >= OTP_MIN_LENGTH && code.length <= OTP_MAX_LENGTH
+
   return (
     <AuthShell
       title="Verificación administrativa"
-      subtitle="Ingresa el código de 4 dígitos enviado a tu correo"
+      subtitle={`Ingresa el código enviado a ${MASTER_ADMIN_EMAIL}`}
     >
       <div className="mb-5 flex items-start gap-3 rounded-lg border border-[#8ac441]/30 bg-[#e8f0e4]/80 px-4 py-3 text-sm text-[#1a3c34]">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#1a3c34]" aria-hidden="true" />
         <p>
           Por seguridad, el acceso al panel <strong>/admin</strong> requiere un segundo factor de
-          autenticación exclusivo para el Administrador Maestro.
+          autenticación. El código se envía exclusivamente a{' '}
+          <strong>{MASTER_ADMIN_EMAIL}</strong>.
         </p>
       </div>
 
       {error && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
+        </p>
+      )}
+
+      {resendOk && (
+        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          {resendOk}
         </p>
       )}
 
@@ -101,21 +118,26 @@ function VerifyAdminForm() {
             id="otp"
             type="text"
             inputMode="numeric"
-            pattern="\d{4}"
-            maxLength={4}
+            pattern="\d{6,8}"
+            maxLength={OTP_MAX_LENGTH}
             required
             autoComplete="one-time-code"
-            placeholder="••••"
+            placeholder="000000"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            onChange={(e) =>
+              setCode(e.target.value.replace(/\D/g, '').slice(0, OTP_MAX_LENGTH))
+            }
             className={inputClass}
           />
+          <p className="mt-1.5 text-xs text-[#5a6b62]">
+            Revisa la bandeja de entrada (y spam) de {MASTER_ADMIN_EMAIL}.
+          </p>
         </div>
 
         <Button
           type="submit"
           size="lg"
-          disabled={loading || code.length !== 4}
+          disabled={loading || !codeReady}
           className={cn('mt-2 h-11 w-full bg-[#1a3c34] text-white hover:bg-[#234a40]')}
         >
           {loading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
