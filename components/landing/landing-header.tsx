@@ -1,15 +1,16 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { LogIn, UserPlus } from 'lucide-react'
 import { BrandLogoPairLink } from '@/components/logo'
 import { SiteHeader } from '@/components/site-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-export function LandingHeader() {
+export function LandingHeader({ brand }: { brand?: ReactNode }) {
   return (
     <div className="sticky top-0 z-50 border-b border-[#dde8d8]/50 bg-gradient-to-r from-emerald-50/95 via-[#e8f0e4]/90 to-white/80 shadow-sm backdrop-blur-sm">
       <SiteHeader
-        brand={<BrandLogoPairLink />}
+        brand={brand ?? <BrandLogoPairLink />}
         className={cn(
           'mx-auto max-w-7xl bg-transparent shadow-none backdrop-blur-none',
           'min-h-[4.5rem] sm:min-h-[5.5rem] lg:min-h-[8.75rem]',
