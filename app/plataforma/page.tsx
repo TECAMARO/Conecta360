@@ -811,6 +811,7 @@ function PlatformApp() {
               directoryParticipants={directoryParticipants}
               onExplore={() => navigate('explorar')}
               onAgenda={() => navigate('agenda')}
+              onProfile={() => navigate('perfil')}
               onRequest={openRequest}
               onViewProfile={openProfile}
               requestDisabled={outgoingSendBlocked}

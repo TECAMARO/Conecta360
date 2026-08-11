@@ -22,6 +22,7 @@ export function DashboardView({
   directoryParticipants,
   onExplore,
   onAgenda,
+  onProfile,
   onRequest,
   onViewProfile,
   requestDisabled = false,
@@ -32,6 +33,7 @@ export function DashboardView({
   directoryParticipants: Participant[]
   onExplore: () => void
   onAgenda: () => void
+  onProfile: () => void
   onRequest: (p: Participant) => void
   onViewProfile: (p: Participant) => void
   requestDisabled?: boolean
@@ -59,9 +61,17 @@ export function DashboardView({
         <h1 className="mt-2 max-w-xl text-balance text-xl font-semibold leading-tight sm:text-2xl md:text-3xl">
           Bienvenido a tu espacio de conexiones estratégicas
         </h1>
-        <p className="mt-2 max-w-xl text-pretty text-sm text-white/85">
+        <p className="mt-2 max-w-xl select-text text-pretty text-sm leading-relaxed text-white/85">
           Encuentra a las personas adecuadas para generar alianzas significativas y transforma cada
-          conexión en impacto real.
+          conexión en impacto real, pero primero tienes que completar tu{' '}
+          <button
+            type="button"
+            onClick={onProfile}
+            className="inline cursor-pointer font-semibold text-white underline decoration-white/70 underline-offset-[3px] transition-colors hover:decoration-white focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          >
+            Perfil Estratégico
+          </button>{' '}
+          para que las demás organizaciones también te encuentren a ti.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Button

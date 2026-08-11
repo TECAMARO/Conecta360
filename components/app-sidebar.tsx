@@ -31,9 +31,9 @@ export type View = 'inicio' | 'explorar' | 'agenda' | 'perfil' | 'mensajes'
 
 const nav: { id: View; label: string; icon: typeof Users }[] = [
   { id: 'inicio', label: 'Inicio', icon: LayoutDashboard },
+  { id: 'perfil', label: 'Mi Perfil Estratégico', icon: UserRound },
   { id: 'explorar', label: 'Explorar Participantes', icon: Users },
   { id: 'agenda', label: 'Mi Agenda', icon: CalendarDays },
-  { id: 'perfil', label: 'Mi Perfil Estratégico', icon: UserRound },
   { id: 'mensajes', label: 'Mensajes', icon: MessagesSquare },
 ]
 
@@ -81,8 +81,16 @@ export function AppSidebar({
       )}
     >
       {/* Brand — hidden in mobile drawer (platform header shows logo) */}
-      <div className={cn('shrink-0 border-b border-sidebar-border px-5 py-3', drawer && 'hidden')}>
-        <BrandLogoLink imageClassName="h-16 w-auto max-w-full object-contain py-1 md:h-20" />
+      <div
+        className={cn(
+          'flex h-[112px] shrink-0 items-center justify-center border-b border-sidebar-border px-3 py-2',
+          drawer && 'hidden',
+        )}
+      >
+        <BrandLogoLink
+          variant="sidebar"
+          className="flex h-full w-full items-center justify-center"
+        />
       </div>
 
       {/* Nav */}

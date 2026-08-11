@@ -8,6 +8,9 @@ export const LOGO_HEIGHT = 188
 /** Default classes for header / navbar logo rendering — no max-width caps. */
 export const LOGO_IMAGE_CLASS = 'h-32 w-auto object-contain py-2 md:h-40'
 
+/** Sidebar brand header — fills the aside logo slot without extra padding caps. */
+export const SIDEBAR_LOGO_IMAGE_CLASS = 'h-full w-full object-contain object-center'
+
 const LOGO_PROPS = {
   src: '/logo.png',
   alt: 'Conecta360',
@@ -16,12 +19,18 @@ const LOGO_PROPS = {
 } as const
 
 /** Official brand logo — use in headers and navigation. */
-export function BrandLogo({ className }: { className?: string }) {
+export function BrandLogo({
+  className,
+  variant = 'default',
+}: {
+  className?: string
+  variant?: 'default' | 'sidebar'
+}) {
   return (
     <Image
       {...LOGO_PROPS}
-      className={cn(LOGO_IMAGE_CLASS, className)}
-      sizes="(min-width: 768px) 550px, 440px"
+      className={cn(variant === 'sidebar' ? SIDEBAR_LOGO_IMAGE_CLASS : LOGO_IMAGE_CLASS, className)}
+      sizes={variant === 'sidebar' ? '288px' : '(min-width: 768px) 550px, 440px'}
       priority
     />
   )
@@ -32,10 +41,12 @@ export function BrandLogoLink({
   className,
   href = '/',
   imageClassName,
+  variant = 'default',
 }: {
   className?: string
   href?: string
   imageClassName?: string
+  variant?: 'default' | 'sidebar'
 }) {
   return (
     <Link
@@ -43,7 +54,7 @@ export function BrandLogoLink({
       aria-label="Conecta360 — inicio"
       className={cn('inline-flex shrink-0 items-center', className)}
     >
-      <BrandLogo className={imageClassName} />
+      <BrandLogo className={imageClassName} variant={variant} />
     </Link>
   )
 }
