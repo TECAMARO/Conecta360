@@ -26,6 +26,11 @@ import {
   buildSentRequestWithReason,
   type AgendaNotification,
 } from '@/lib/meetings'
+import {
+  appendUniqueMeetingNotifications,
+  detectNewlyConfirmedNotifications,
+  meetingConfirmedByYouMessage,
+} from '@/lib/agenda-notifications'
 import { canAcceptMeetingRequest } from '@/lib/agenda-protection'
 import { saveMeetingEvaluation, type MeetingEvaluationInput } from '@/lib/meeting-evaluation'
 import { clearAuthSession, getAuthSession } from '@/lib/auth'
@@ -147,6 +152,7 @@ function PlatformApp() {
   /** Blocks double-submit while accept/reject awaits Supabase confirmation. */
   const [respondingMeetingId, setRespondingMeetingId] = useState<string | null>(null)
   const toastTimeoutRef = useRef<number | null>(null)
+  const appointmentsSnapshotRef = useRef<Appointment[]>([])
 
   async function reloadMessaging(activeUserId: string, options?: { silent?: boolean }) {
     if (!options?.silent) setMessagesLoading(true)
@@ -171,12 +177,20 @@ function PlatformApp() {
   }
 
   async function reloadMeetings(activeUserId: string, options?: { silent?: boolean }) {
+    const previous = appointmentsSnapshotRef.current
     const [{ appointments: userAppts }, globalOccupancy] = await Promise.all([
       fetchUserMeetings(activeUserId),
       fetchAllActiveMeetings(),
     ])
+    appointmentsSnapshotRef.current = userAppts
     setAppointments(userAppts)
     setSlotOccupancy(globalOccupancy)
+
+    const confirmedNotifications = detectNewlyConfirmedNotifications(previous, userAppts)
+    if (confirmedNotifications.length > 0) {
+      setNotifications((prev) => appendUniqueMeetingNotifications(prev, confirmedNotifications))
+    }
+
     await reloadMessaging(activeUserId, { silent: options?.silent })
   }
 
@@ -494,18 +508,26 @@ function PlatformApp() {
       const name = await resolveParticipantCompanyName(target.participantId)
 
       if (crossNotifications.length > 0) {
-        setNotifications((prev) => [...crossNotifications, ...prev])
+        setNotifications((prev) =>
+          appendUniqueMeetingNotifications(
+            prev,
+            crossNotifications.map((n) => ({ ...n, kind: n.kind ?? 'event' })),
+          ),
+        )
       }
 
-      setNotifications((prev) => [
-        {
-          id: `n-accept-${Date.now()}`,
-          message: `✅ Confirmaste la reunión con ${name} para el ${target.day} a las ${target.time} (${target.table}).`,
-          createdAt: respondedAt,
-          read: false,
-        },
-        ...prev,
-      ])
+      setNotifications((prev) =>
+        appendUniqueMeetingNotifications(prev, [
+          {
+            id: `n-accept-${id}-${Date.now()}`,
+            meetingId: id,
+            message: meetingConfirmedByYouMessage(name, target),
+            createdAt: respondedAt,
+            read: false,
+            kind: 'confirmed',
+          },
+        ]),
+      )
       showToast(`Reunión confirmada con ${name}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'No se pudo confirmar la reunión.')
@@ -523,7 +545,6 @@ function PlatformApp() {
     const activeUserId = userId ?? getAuthSession()?.userId
     if (!activeUserId || respondingMeetingId) return
 
-    const rejected = appointments.find((a) => a.id === id)
     setRespondingMeetingId(id)
 
     try {
@@ -537,24 +558,8 @@ function PlatformApp() {
         return
       }
 
-      const respondedAt = new Date().toISOString()
       await reloadMeetings(activeUserId)
 
-      if (rejected) {
-        const name =
-          participantById(rejected.participantId)?.name ??
-          (await fetchProfileDisplayName(rejected.participantId)) ??
-          'participante'
-        setNotifications((prev) => [
-          {
-            id: `n-reject-${Date.now()}`,
-            message: `Rechazaste la solicitud de reunión de ${name}.`,
-            createdAt: respondedAt,
-            read: false,
-          },
-          ...prev,
-        ])
-      }
       showToast('Solicitud rechazada')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'No se pudo rechazar la solicitud.')

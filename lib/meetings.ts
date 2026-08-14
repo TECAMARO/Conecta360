@@ -16,8 +16,9 @@ export type AgendaNotification = {
   message: string
   createdAt: string
   read: boolean
-  /** Alert banners inside Mi Agenda; default event notifications stay in the bell dropdown. */
-  kind?: 'alert' | 'event'
+  /** Alert banners inside Mi Agenda; bell shows confirmed, upcoming and cross events. */
+  kind?: 'alert' | 'event' | 'confirmed' | 'upcoming'
+  meetingId?: string
 }
 
 export { MEETING_MODALITY }

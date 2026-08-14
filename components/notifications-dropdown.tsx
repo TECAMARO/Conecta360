@@ -4,37 +4,15 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
-  pendingRequestsCount,
-  pendingRequestsSummaryMessage,
-  type AgendaNotification,
-} from '@/lib/meetings'
+  buildBellNotifications,
+  countUnreadBellNotifications,
+  persistDismissedUpcomingIds,
+  readDismissedUpcomingIds,
+  type BellNotification,
+} from '@/lib/agenda-notifications'
+import type { AgendaNotification } from '@/lib/meetings'
 import type { Appointment } from '@/lib/data'
 import { Bell } from 'lucide-react'
-
-type DisplayNotification = AgendaNotification & { synthetic?: boolean }
-
-function buildDisplayNotifications(
-  notifications: AgendaNotification[],
-  appointments: Appointment[],
-): DisplayNotification[] {
-  const pending = pendingRequestsCount(appointments)
-  const synthetic: DisplayNotification[] =
-    pending > 0
-      ? [
-          {
-            id: 'pending-summary',
-            message: pendingRequestsSummaryMessage(pending),
-            createdAt: new Date().toISOString(),
-            read: true,
-            synthetic: true,
-          },
-        ]
-      : []
-
-  return [...notifications].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  ).concat(synthetic)
-}
 
 export function NotificationsDropdown({
   notifications,
@@ -48,10 +26,23 @@ export function NotificationsDropdown({
   onMarkRead: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [dismissedUpcomingIds, setDismissedUpcomingIds] = useState<Set<string>>(() =>
+    readDismissedUpcomingIds(),
+  )
   const rootRef = useRef<HTMLDivElement>(null)
+  const tickRef = useRef(0)
+  const [, setTick] = useState(0)
 
-  const unreadCount = notifications.filter((n) => !n.read).length
-  const items = buildDisplayNotifications(notifications, appointments)
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      tickRef.current += 1
+      setTick(tickRef.current)
+    }, 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  const items = buildBellNotifications(notifications, appointments, dismissedUpcomingIds)
+  const unreadCount = countUnreadBellNotifications(items)
 
   useEffect(() => {
     if (!open) return
@@ -63,6 +54,43 @@ export function NotificationsDropdown({
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [open])
+
+  function dismissUpcoming(meetingId: string) {
+    setDismissedUpcomingIds((prev) => {
+      const next = new Set(prev)
+      next.add(meetingId)
+      persistDismissedUpcomingIds(next)
+      return next
+    })
+  }
+
+  function handleItemClick(item: BellNotification) {
+    if (item.kind === 'upcoming' && item.meetingId) {
+      dismissUpcoming(item.meetingId)
+      return
+    }
+    if (!item.synthetic && !item.read) {
+      onMarkRead(item.id)
+    }
+  }
+
+  function handleMarkAllRead() {
+    const upcomingIds = items
+      .filter((item) => item.kind === 'upcoming' && item.meetingId)
+      .map((item) => item.meetingId as string)
+
+    if (upcomingIds.length > 0) {
+      setDismissedUpcomingIds((prev) => {
+        const next = new Set(prev)
+        for (const id of upcomingIds) next.add(id)
+        persistDismissedUpcomingIds(next)
+        return next
+      })
+    }
+
+    onMarkAllRead()
+    setOpen(false)
+  }
 
   return (
     <div ref={rootRef} className="relative">
@@ -117,12 +145,10 @@ export function NotificationsDropdown({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => {
-                        if (!item.synthetic && !item.read) onMarkRead(item.id)
-                      }}
+                      onClick={() => handleItemClick(item)}
                       className={cn(
                         'w-full px-4 py-3 text-left text-sm leading-relaxed transition-colors hover:bg-muted/60',
-                        !item.synthetic && !item.read
+                        !item.read
                           ? 'bg-secondary/30 font-medium text-foreground'
                           : 'text-muted-foreground',
                       )}
@@ -141,10 +167,7 @@ export function NotificationsDropdown({
                 variant="ghost"
                 size="sm"
                 className="w-full justify-center text-primary"
-                onClick={() => {
-                  onMarkAllRead()
-                  setOpen(false)
-                }}
+                onClick={handleMarkAllRead}
               >
                 Marcar todas como leídas
               </Button>
