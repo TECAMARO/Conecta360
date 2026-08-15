@@ -25,12 +25,15 @@ import {
   acceptMeetingRequest,
   agendaSidebarBadgeCount,
   buildSentRequestWithReason,
+  pendingRequestsCount,
   type AgendaNotification,
 } from '@/lib/meetings'
 import {
   appendUniqueMeetingNotifications,
   detectNewlyConfirmedNotifications,
-  meetingConfirmedByYouMessage,
+  detectNewlyPartyCancelledNotifications,
+  detectNewlyReceivedRequestNotifications,
+  detectNewlyRejectedNotifications,
 } from '@/lib/agenda-notifications'
 import { canAcceptMeetingRequest } from '@/lib/agenda-protection'
 import { saveMeetingEvaluation, type MeetingEvaluationInput } from '@/lib/meeting-evaluation'
@@ -153,6 +156,7 @@ function PlatformApp() {
   const [messagesActiveId, setMessagesActiveId] = useState<string | null>(null)
   /** Blocks double-submit while accept/reject awaits Supabase confirmation. */
   const [respondingMeetingId, setRespondingMeetingId] = useState<string | null>(null)
+  const [agendaNavigateKey, setAgendaNavigateKey] = useState(0)
   const toastTimeoutRef = useRef<number | null>(null)
   const appointmentsSnapshotRef = useRef<Appointment[]>([])
 
@@ -201,7 +205,12 @@ function PlatformApp() {
     setAppointments(userAppts)
     setSlotOccupancy(globalOccupancy)
 
-    const confirmedNotifications = detectNewlyConfirmedNotifications(previous, userAppts)
+    const confirmedNotifications = [
+      ...detectNewlyConfirmedNotifications(previous, userAppts),
+      ...detectNewlyReceivedRequestNotifications(previous, userAppts),
+      ...detectNewlyRejectedNotifications(previous, userAppts),
+      ...detectNewlyPartyCancelledNotifications(previous, userAppts),
+    ]
     if (confirmedNotifications.length > 0) {
       setNotifications((prev) => appendUniqueMeetingNotifications(prev, confirmedNotifications))
     }
@@ -340,6 +349,8 @@ function PlatformApp() {
   }
 
   const agendaCount = agendaSidebarBadgeCount(appointments)
+  const agendaDefaultTab =
+    pendingRequestsCount(appointments) > 0 ? ('solicitudes' as const) : ('reuniones' as const)
   const outgoingSendBlocked = isOutgoingSendBlocked(appointments)
 
   function showToast(msg: string, variant: 'success' | 'warning' = 'success') {
@@ -508,7 +519,6 @@ function PlatformApp() {
 
       notifyMeetingConfirmationEmail(id)
 
-      const respondedAt = new Date().toISOString()
       const crossNotifications = acceptMeetingRequest(
         appointments,
         slotOccupancy,
@@ -533,18 +543,6 @@ function PlatformApp() {
         )
       }
 
-      setNotifications((prev) =>
-        appendUniqueMeetingNotifications(prev, [
-          {
-            id: `n-accept-${id}-${Date.now()}`,
-            meetingId: id,
-            message: meetingConfirmedByYouMessage(name, target),
-            createdAt: respondedAt,
-            read: false,
-            kind: 'confirmed',
-          },
-        ]),
-      )
       showToast(`Reunión confirmada con ${name}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'No se pudo confirmar la reunión.')
@@ -735,6 +733,9 @@ function PlatformApp() {
   }
 
   function navigate(next: View) {
+    if (next === 'agenda') {
+      setAgendaNavigateKey((key) => key + 1)
+    }
     setView(next)
     setMobileNavOpen(false)
 
@@ -848,6 +849,8 @@ function PlatformApp() {
           )}
           {view === 'agenda' && (
             <AgendaView
+              key={agendaNavigateKey}
+              defaultTab={agendaDefaultTab}
               appointments={appointments}
               conversations={conversations}
               notifications={notifications}

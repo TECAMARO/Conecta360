@@ -17,7 +17,7 @@ export type AgendaNotification = {
   createdAt: string
   read: boolean
   /** Alert banners inside Mi Agenda; bell shows confirmed, upcoming and cross events. */
-  kind?: 'alert' | 'event' | 'confirmed' | 'upcoming'
+  kind?: 'alert' | 'event' | 'confirmed' | 'upcoming' | 'request' | 'rejected' | 'cancelled'
   meetingId?: string
 }
 

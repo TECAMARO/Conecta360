@@ -103,6 +103,14 @@ function MeetingStatusBadge({ appointment }: { appointment: Appointment }) {
     )
   }
 
+  if (status === 'cancelada_admin') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+        🚫 Cancelada por una de las partes
+      </span>
+    )
+  }
+
   if (status === 'anulada_por_cruce' || status === 'cancelada_conflicto') {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
@@ -310,6 +318,13 @@ function cancellationNotice(appointment: Appointment): string {
       : 'Esta solicitud fue anulada porque alcanzaste el límite de agendamientos confirmados.'
   }
 
+  if (appointment.status === 'cancelada_admin') {
+    const name =
+      participantById(appointment.participantId)?.name ??
+      'tu contraparte'
+    return `Tu reunión con ${name} fue cancelada por una de las partes.`
+  }
+
   return ''
 }
 
@@ -323,6 +338,7 @@ export function AgendaView({
   appointments,
   conversations,
   notifications,
+  defaultTab = 'reuniones',
   respondingMeetingId = null,
   onOpenConversation,
   onAccept,
@@ -335,6 +351,8 @@ export function AgendaView({
   appointments: Appointment[]
   conversations: Conversation[]
   notifications: AgendaNotification[]
+  /** Pestaña inicial al abrir Mi Agenda (p. ej. Solicitudes si hay pendientes). */
+  defaultTab?: Tab
   /** Disables accept/reject while awaiting Supabase confirmation. */
   respondingMeetingId?: string | null
   onOpenConversation: (participantId: string, meetingId?: string) => void
@@ -345,7 +363,7 @@ export function AgendaView({
   onNotify?: (message: string) => void
   onSaveEvaluation: (appointmentId: string, input: MeetingEvaluationInput) => void
 }) {
-  const [tab, setTab] = useState<Tab>('reuniones')
+  const [tab, setTab] = useState<Tab>(defaultTab)
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [evaluationTarget, setEvaluationTarget] = useState<Appointment | null>(null)
   const [evaluationOpen, setEvaluationOpen] = useState(false)

@@ -19,16 +19,21 @@ export function isBellStoredNotification(notification: AgendaNotification): bool
   if (
     notification.kind === 'confirmed' ||
     notification.kind === 'event' ||
-    notification.kind === 'upcoming'
+    notification.kind === 'upcoming' ||
+    notification.kind === 'request' ||
+    notification.kind === 'rejected' ||
+    notification.kind === 'cancelled'
   ) {
     return true
   }
   if (notification.kind) return false
-  if (notification.message.includes('Rechazaste')) return false
-  if (notification.message.includes('pendiente de respuesta')) return false
   return (
     notification.message.includes('Confirmaste') ||
     notification.message.includes('confirmada') ||
+    notification.message.includes('solicitud') ||
+    notification.message.includes('Solicitud') ||
+    notification.message.includes('rechaz') ||
+    notification.message.includes('cancelada por una de las partes') ||
     notification.message.includes('Anulada') ||
     notification.message.includes('cruce')
   )
@@ -67,6 +72,33 @@ export function meetingConfirmedForSenderMessage(
   return `✅ Tu solicitud fue confirmada. Reunión con ${counterpartyName} el ${appointment.day} a las ${appointment.time} (${appointment.table}).`
 }
 
+export function meetingRequestReceivedMessage(
+  requesterName: string,
+  appointment: Pick<Appointment, 'day' | 'time' | 'table'>,
+): string {
+  return `📩 Nueva solicitud de agendamiento de ${requesterName} para el ${appointment.day} a las ${appointment.time} (${appointment.table}).`
+}
+
+export function meetingRejectedForSenderMessage(
+  counterpartyName: string,
+  appointment: Pick<Appointment, 'day' | 'time' | 'table'>,
+): string {
+  return `✕ Tu solicitud de reunión con ${counterpartyName} fue rechazada (${appointment.day} · ${appointment.time}).`
+}
+
+export function meetingConfirmedForRecipientMessage(
+  counterpartyName: string,
+  appointment: Pick<Appointment, 'day' | 'time' | 'table'>,
+): string {
+  return `✅ Confirmaste la reunión con ${counterpartyName} para el ${appointment.day} a las ${appointment.time} (${appointment.table}).`
+}
+
+export function meetingCancelledByPartyMessage(counterpartyName: string): string {
+  return `Tu reunión con ${counterpartyName} fue cancelada por una de las partes.`
+}
+
+const ACTIVE_MEETING_STATUSES = new Set<Appointment['status']>(['confirmada', 'pendiente'])
+
 export function buildUpcomingReminderNotifications(
   appointments: Appointment[],
   dismissedIds: ReadonlySet<string>,
@@ -98,6 +130,110 @@ export function detectNewlyConfirmedNotifications(
       return []
     }
 
+    const name =
+      participantById(appt.participantId)?.name ??
+      'la organización'
+
+    if (appt.direction === 'sent') {
+      return [
+        {
+          id: `n-confirmed-${appt.id}-${Date.now()}`,
+          meetingId: appt.id,
+          message: meetingConfirmedForSenderMessage(name, appt),
+          createdAt: appt.respondedAt ?? nowIso,
+          read: false,
+          kind: 'confirmed' as const,
+        },
+      ]
+    }
+
+    if (appt.direction === 'received') {
+      return [
+        {
+          id: `n-confirmed-recv-${appt.id}-${Date.now()}`,
+          meetingId: appt.id,
+          message: meetingConfirmedForRecipientMessage(name, appt),
+          createdAt: appt.respondedAt ?? nowIso,
+          read: false,
+          kind: 'confirmed' as const,
+        },
+      ]
+    }
+
+    return []
+  })
+}
+
+export function detectNewlyReceivedRequestNotifications(
+  previous: Appointment[],
+  next: Appointment[],
+): AgendaNotification[] {
+  const prevById = new Map(previous.map((appt) => [appt.id, appt]))
+  const nowIso = new Date().toISOString()
+
+  return next.flatMap((appt) => {
+    if (appt.status !== 'pendiente' || appt.direction !== 'received') return []
+
+    const before = prevById.get(appt.id)
+    if (before?.status === 'pendiente' && before.direction === 'received') return []
+
+    const name =
+      participantById(appt.participantId)?.name ??
+      'Una organización'
+
+    return [
+      {
+        id: `n-request-${appt.id}-${Date.now()}`,
+        meetingId: appt.id,
+        message: meetingRequestReceivedMessage(name, appt),
+        createdAt: appt.createdAt ?? nowIso,
+        read: false,
+        kind: 'request' as const,
+      },
+    ]
+  })
+}
+
+export function detectNewlyPartyCancelledNotifications(
+  previous: Appointment[],
+  next: Appointment[],
+): AgendaNotification[] {
+  const prevById = new Map(previous.map((appt) => [appt.id, appt]))
+  const nowIso = new Date().toISOString()
+
+  return next.flatMap((appt) => {
+    if (appt.status !== 'cancelada_admin') return []
+
+    const before = prevById.get(appt.id)
+    if (!before || !ACTIVE_MEETING_STATUSES.has(before.status)) return []
+
+    const name =
+      participantById(appt.participantId)?.name ??
+      'tu contraparte'
+
+    return [
+      {
+        id: `n-cancelled-${appt.id}-${Date.now()}`,
+        meetingId: appt.id,
+        message: meetingCancelledByPartyMessage(name),
+        createdAt: nowIso,
+        read: false,
+        kind: 'cancelled' as const,
+      },
+    ]
+  })
+}
+
+export function detectNewlyRejectedNotifications(
+  previous: Appointment[],
+  next: Appointment[],
+): AgendaNotification[] {
+  const prevById = new Map(previous.map((appt) => [appt.id, appt]))
+  const nowIso = new Date().toISOString()
+
+  return next.flatMap((appt) => {
+    const before = prevById.get(appt.id)
+    if (!before || before.status !== 'pendiente' || appt.status !== 'rechazada') return []
     if (appt.direction !== 'sent') return []
 
     const name =
@@ -106,12 +242,12 @@ export function detectNewlyConfirmedNotifications(
 
     return [
       {
-        id: `n-confirmed-${appt.id}-${Date.now()}`,
+        id: `n-rejected-${appt.id}-${Date.now()}`,
         meetingId: appt.id,
-        message: meetingConfirmedForSenderMessage(name, appt),
-        createdAt: appt.respondedAt ?? nowIso,
+        message: meetingRejectedForSenderMessage(name, appt),
+        createdAt: nowIso,
         read: false,
-        kind: 'confirmed' as const,
+        kind: 'rejected' as const,
       },
     ]
   })
@@ -125,7 +261,15 @@ export function appendUniqueMeetingNotifications(
 
   const seen = new Set(
     existing
-      .filter((n) => n.meetingId && (n.kind === 'confirmed' || n.kind === 'upcoming'))
+      .filter(
+        (n) =>
+          n.meetingId &&
+          (n.kind === 'confirmed' ||
+            n.kind === 'upcoming' ||
+            n.kind === 'request' ||
+            n.kind === 'rejected' ||
+            n.kind === 'cancelled'),
+      )
       .map((n) => `${n.kind}:${n.meetingId}`),
   )
 
