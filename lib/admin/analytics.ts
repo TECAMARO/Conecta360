@@ -1,3 +1,4 @@
+import { buildActivityProcessFeed, type ActivityProcessEntry } from '@/lib/admin/activity-feed'
 import { parseAppointmentDateRange } from '@/lib/agenda-export'
 import {
   MAX_MEETING_CAPACITY,
@@ -73,7 +74,16 @@ export type ExecutiveKpis = {
   avgMeetingsPerOrg: number
   allianceIndex: number
   schedulingEfficiency: number
-  satisfactionScore: number
+  /** Promedio 1–5 solo de check-ins con reunión concretada + expectativa de alianza. */
+  satisfactionScore: number | null
+  /** Check-ins registrados vía Mi Agenda (Registrar resultado). */
+  checkInSubmitted: number
+  /** Reuniones B2B ya finalizadas elegibles para check-in. */
+  checkInEligible: number
+  /** Porcentaje de respuesta al cuestionario post-reunión. */
+  checkInResponseRate: number
+  /** Evaluaciones que aportan al puntaje de satisfacción. */
+  satisfactionResponses: number
 }
 
 const CONFIRMED = new Set(['confirmada', 'confirmed', 'completada', 'completed'])
@@ -175,6 +185,83 @@ function allianceScore(expectation: string | null | undefined): number | null {
   }
 }
 
+function isMeetingPastEnd(meeting: AdminMeetingRow, now: Date): boolean {
+  const slot = eventTimeSlots.find((s) => s.dayId === meeting.day && s.time === meeting.slot_time)
+  if (!slot) return false
+  const range = parseAppointmentDateRange(slot.id, meeting.slot_time)
+  return range ? range.end.getTime() < now.getTime() : false
+}
+
+/** Reuniones confirmadas/completadas cuyo bloque horario ya terminó (elegibles para check-in). */
+export function isCheckInEligibleMeeting(meeting: AdminMeetingRow, now = new Date()): boolean {
+  const status = normalizeStatus(meeting.status)
+  if (!CONFIRMED.has(status) && status !== 'completada') return false
+  return isMeetingPastEnd(meeting, now)
+}
+
+export function filterEvaluationsForMeetings(
+  evaluations: AdminEvaluationRow[],
+  meetingIds: Set<string>,
+): AdminEvaluationRow[] {
+  return evaluations.filter((ev) => meetingIds.has(ev.meeting_id))
+}
+
+export function computeCheckInSatisfactionMetrics(
+  meetings: AdminMeetingRow[],
+  evaluations: AdminEvaluationRow[],
+  now = new Date(),
+): Pick<
+  ExecutiveKpis,
+  | 'satisfactionScore'
+  | 'checkInSubmitted'
+  | 'checkInEligible'
+  | 'checkInResponseRate'
+  | 'satisfactionResponses'
+  | 'allianceIndex'
+> {
+  const evalByMeeting = new Map<string, AdminEvaluationRow>()
+  for (const ev of evaluations) {
+    evalByMeeting.set(ev.meeting_id, ev)
+  }
+
+  const eligibleMeetings = meetings.filter((m) => isCheckInEligibleMeeting(m, now))
+  const checkInEligible = eligibleMeetings.length
+  const checkInSubmitted = eligibleMeetings.filter((m) => evalByMeeting.has(m.id)).length
+  const checkInResponseRate =
+    checkInEligible > 0 ? Math.round((checkInSubmitted / checkInEligible) * 100) : 0
+
+  const scoredEvaluations = evaluations.filter(
+    (ev) => ev.attendance === 'concretada' && allianceScore(ev.alliance_expectation) !== null,
+  )
+  const satisfactionResponses = scoredEvaluations.length
+  const allianceScores = scoredEvaluations
+    .map((ev) => allianceScore(ev.alliance_expectation))
+    .filter((score): score is number => score !== null)
+
+  const satisfactionScore =
+    allianceScores.length > 0
+      ? Math.round(
+          (allianceScores.reduce((sum, score) => sum + score, 0) / allianceScores.length) * 10,
+        ) / 10
+      : null
+
+  const allianceRated = evaluations.filter((ev) => allianceScore(ev.alliance_expectation) !== null)
+  const positiveAlliance = allianceRated.filter(
+    (ev) => ev.alliance_expectation === 'alta' || ev.alliance_expectation === 'media',
+  ).length
+  const allianceIndex =
+    allianceRated.length > 0 ? Math.round((positiveAlliance / allianceRated.length) * 100) : 0
+
+  return {
+    satisfactionScore,
+    checkInSubmitted,
+    checkInEligible,
+    checkInResponseRate,
+    satisfactionResponses,
+    allianceIndex,
+  }
+}
+
 export function computeExecutiveKpis(
   meetings: AdminMeetingRow[],
   profiles: AdminProfileRow[],
@@ -233,23 +320,7 @@ export function computeExecutiveKpis(
   const attendanceRate =
     pastConfirmed > 0 ? Math.round((concretadaCount / pastConfirmed) * 100) : 0
 
-  const allianceScores = evaluations
-    .map((ev) => allianceScore(ev.alliance_expectation))
-    .filter((score): score is number => score !== null)
-
-  const positiveAlliance = evaluations.filter(
-    (ev) => ev.alliance_expectation === 'alta' || ev.alliance_expectation === 'media',
-  ).length
-
-  const allianceIndex =
-    evaluations.length > 0 ? Math.round((positiveAlliance / evaluations.length) * 100) : 0
-
-  const satisfactionScore =
-    allianceScores.length > 0
-      ? Math.round(
-          (allianceScores.reduce((sum, score) => sum + score, 0) / allianceScores.length) * 10,
-        ) / 10
-      : 0
+  const checkInMetrics = computeCheckInSatisfactionMetrics(meetings, evaluations, now)
 
   const schedulingEfficiency = Math.round((occupiedBlocks.size / TOTAL_TIME_BLOCKS) * 100)
 
@@ -263,9 +334,13 @@ export function computeExecutiveKpis(
     orgLimit: MAX_REGISTERED_ORGANIZATIONS,
     attendanceRate,
     avgMeetingsPerOrg: Math.round(avgMeetingsPerOrg * 10) / 10,
-    allianceIndex,
+    allianceIndex: checkInMetrics.allianceIndex,
     schedulingEfficiency,
-    satisfactionScore,
+    satisfactionScore: checkInMetrics.satisfactionScore,
+    checkInSubmitted: checkInMetrics.checkInSubmitted,
+    checkInEligible: checkInMetrics.checkInEligible,
+    checkInResponseRate: checkInMetrics.checkInResponseRate,
+    satisfactionResponses: checkInMetrics.satisfactionResponses,
   }
 }
 
@@ -381,20 +456,32 @@ export function buildExecutiveSnapshot(
 ) {
   const filteredProfiles = filterProfilesForExecutive(profiles, filters)
   const filteredMeetings = filterMeetingsForExecutive(meetings, profiles, filters)
+  const filteredMeetingIds = new Set(filteredMeetings.map((m) => m.id))
+  const filteredEvaluations = filterEvaluationsForMeetings(evaluations, filteredMeetingIds)
+  const meetingById = new Map(filteredMeetings.map((m) => [m.id, m]))
+  const activityFeed = buildActivityProcessFeed(
+    filteredMeetings,
+    filteredEvaluations,
+    meetingById,
+  )
 
   return {
     filters,
     profiles: filteredProfiles,
     meetings: filteredMeetings,
-    evaluations,
-    kpis: computeExecutiveKpis(filteredMeetings, filteredProfiles, evaluations),
+    evaluations: filteredEvaluations,
+    kpis: computeExecutiveKpis(filteredMeetings, filteredProfiles, filteredEvaluations),
     sectorDistribution: countSectors(filteredProfiles),
     offerDistribution: countTags(filteredProfiles, 'offers'),
     seekDistribution: countTags(filteredProfiles, 'seeks'),
     slotGrid: buildSlotGrid(filteredMeetings, filters),
     meetingLedger: buildMeetingLedger(filteredMeetings),
+    activityFeed,
+    latestProcess: activityFeed[0] ?? null,
     generatedAt: new Date().toISOString(),
   }
 }
+
+export type { ActivityProcessEntry }
 
 export type ExecutiveSnapshot = ReturnType<typeof buildExecutiveSnapshot>

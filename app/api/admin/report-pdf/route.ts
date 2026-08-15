@@ -31,10 +31,17 @@ export async function POST(request: Request) {
   }
 
   let filters: ExecutiveFilters = DEFAULT_EXECUTIVE_FILTERS
+  let lastProcessImage: string | undefined
   try {
-    const body = (await request.json()) as { filters?: Partial<ExecutiveFilters> }
+    const body = (await request.json()) as {
+      filters?: Partial<ExecutiveFilters>
+      lastProcessImage?: string
+    }
     if (body.filters) {
       filters = { ...DEFAULT_EXECUTIVE_FILTERS, ...body.filters }
+    }
+    if (body.lastProcessImage?.startsWith('data:image/')) {
+      lastProcessImage = body.lastProcessImage
     }
   } catch {
     /* use defaults */
@@ -56,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const buffer = await renderToBuffer(
-      ExecutiveReportDocument({ snapshot, logoUrls }),
+      ExecutiveReportDocument({ snapshot, logoUrls, lastProcessImage }),
     )
 
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')

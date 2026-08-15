@@ -1,6 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toPng } from 'html-to-image'
+import {
+  ExecutiveLatestProcessCapture,
+  ExecutiveProcessFeedPanel,
+} from '@/components/admin/executive-process-feed'
 import {
   Bar,
   BarChart,
@@ -153,6 +158,7 @@ export function ExecutiveDashboard() {
   const [pdfLoading, setPdfLoading] = useState(false)
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const latestProcessCaptureRef = useRef<HTMLDivElement>(null)
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true)
@@ -210,10 +216,23 @@ export function ExecutiveDashboard() {
   async function handleDownloadPdf() {
     setPdfLoading(true)
     try {
+      let lastProcessImage: string | undefined
+      if (snapshot.latestProcess && latestProcessCaptureRef.current) {
+        try {
+          lastProcessImage = await toPng(latestProcessCaptureRef.current, {
+            pixelRatio: 2,
+            cacheBust: true,
+            backgroundColor: '#ffffff',
+          })
+        } catch (captureErr) {
+          console.warn('[executive-dashboard] No se pudo capturar último proceso:', captureErr)
+        }
+      }
+
       const res = await fetch('/api/admin/report-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filters }),
+        body: JSON.stringify({ filters, lastProcessImage }),
       })
       if (!res.ok) {
         const data = (await res.json()) as { error?: string }
@@ -375,7 +394,7 @@ export function ExecutiveDashboard() {
         <KpiCard
           label="Índice de vinculación"
           value={`${kpis.allianceIndex}%`}
-          hint="Evaluaciones con expectativa alta o media"
+          hint="Sobre check-ins con expectativa registrada (alta o media)"
           icon={Building2}
         />
         <KpiCard
@@ -385,12 +404,34 @@ export function ExecutiveDashboard() {
           icon={Activity}
         />
         <KpiCard
-          label="Satisfacción promedio"
-          value={`${kpis.satisfactionScore} ⭐`}
-          hint="Escala 1–5 según expectativa de alianza"
+          label="Satisfacción promedio (Check-in Mi Agenda)"
+          value={kpis.satisfactionScore != null ? `${kpis.satisfactionScore} ⭐` : 'N/D'}
+          hint={
+            kpis.checkInEligible > 0
+              ? `${kpis.checkInSubmitted}/${kpis.checkInEligible} check-ins (${kpis.checkInResponseRate}% respuesta) · ${kpis.satisfactionResponses} con expectativa de alianza · escala 1–5`
+              : 'Sin reuniones finalizadas elegibles para check-in aún'
+          }
           icon={Star}
         />
       </section>
+
+      <ExecutiveProcessFeedPanel
+        entries={snapshot.activityFeed}
+        latestEntry={snapshot.latestProcess}
+      />
+
+      {snapshot.latestProcess && (
+        <div
+          className="fixed left-0 top-0 -z-10"
+          style={{ transform: 'translateX(-10000px)' }}
+          aria-hidden="true"
+        >
+          <ExecutiveLatestProcessCapture
+            ref={latestProcessCaptureRef}
+            entry={snapshot.latestProcess}
+          />
+        </div>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <TagBarChart title="Sector económico" data={snapshot.sectorDistribution} />
