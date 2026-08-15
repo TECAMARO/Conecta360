@@ -191,7 +191,7 @@ export function NotificationsDropdown({
                 {unreadCount > 0 ? (
                   <p className="text-xs text-[#5a6b62]">{unreadCount} sin leer</p>
                 ) : (
-                  <p className="text-xs text-[#5a6b62]">Mi Agenda · tiempo real</p>
+                  <p className="text-xs text-[#5a6b62]">Mi Agenda</p>
                 )}
               </div>
             </div>
