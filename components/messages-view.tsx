@@ -7,8 +7,23 @@ import { ParticipantAvatar } from '@/components/participant-avatar'
 import { Send, MessagesSquare, ChevronLeft, Loader2 } from 'lucide-react'
 
 function resolveParticipant(conversation: Conversation): ConversationParticipant | null {
-  if (conversation.participant) return conversation.participant
   const fromRegistry = participantById(conversation.participantId)
+
+  if (conversation.participant) {
+    const stub = conversation.participant
+    if (!fromRegistry) return stub
+    return {
+      ...stub,
+      name: stub.name?.trim() && stub.name !== 'Organización' ? stub.name : fromRegistry.name,
+      fullName: stub.fullName?.trim() ? stub.fullName : fromRegistry.fullName,
+      role: stub.role?.trim() ? stub.role : fromRegistry.role,
+      avatarUrl: stub.avatarUrl?.trim() ? stub.avatarUrl : fromRegistry.avatarUrl ?? null,
+      acronym: stub.acronym?.trim() && stub.acronym !== '??' ? stub.acronym : fromRegistry.acronym,
+      location: stub.location?.trim() ? stub.location : fromRegistry.location,
+      sector: stub.sector?.trim() ? stub.sector : fromRegistry.sector,
+    }
+  }
+
   if (!fromRegistry) return null
   return {
     id: fromRegistry.id,

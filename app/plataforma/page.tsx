@@ -168,12 +168,21 @@ function PlatformApp() {
         fetchUnreadMessagesCount(activeUserId),
       ])
       setConversations((prev) => mergeConversationMessages(prev, threads))
-      mergeParticipantRegistry(
-        threads
-          .map((thread) => thread.participant)
-          .filter(Boolean)
-          .map((participant) => conversationParticipantToRegistryEntry(participant!)),
-      )
+      const counterpartIds = [...new Set(threads.map((thread) => thread.participantId))]
+      if (counterpartIds.length > 0) {
+        try {
+          const profiles = await fetchProfilesByIds(counterpartIds, activeUserId)
+          mergeParticipantRegistry(profiles)
+        } catch (err) {
+          console.warn('[reloadMessaging] No se pudieron cargar perfiles de conversaciones:', err)
+          mergeParticipantRegistry(
+            threads
+              .map((thread) => thread.participant)
+              .filter(Boolean)
+              .map((participant) => conversationParticipantToRegistryEntry(participant!)),
+          )
+        }
+      }
       setUnreadCount(unread)
     } catch (err) {
       console.warn('[reloadMessaging]', err)
@@ -862,6 +871,7 @@ function PlatformApp() {
               onDismissNotification={dismissNotification}
               onNotify={showToast}
               onSaveEvaluation={(id, input) => void handleSaveEvaluation(id, input)}
+              onViewProfile={openProfile}
             />
           )}
           {view === 'perfil' && <ProfileView />}

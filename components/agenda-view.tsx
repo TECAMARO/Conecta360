@@ -6,6 +6,7 @@ import { SectorBadge } from '@/components/sector-badge'
 import { Button } from '@/components/ui/button'
 import { AgendaExportActions } from '@/components/agenda-export-actions'
 import { AgendaPrintSheet } from '@/components/agenda-print-sheet'
+import { ParticipantAvatar } from '@/components/participant-avatar'
 import { participantById, type Appointment, type Conversation, type Participant } from '@/lib/data'
 import {
   filterConfirmed,
@@ -150,14 +151,40 @@ function resolveAppointmentParticipant(appointment: Appointment): Participant {
   }
 }
 
+function resolveConversationParticipant(conversation: Conversation): Participant | null {
+  const fromRegistry = participantById(conversation.participantId)
+  if (fromRegistry) return fromRegistry
+
+  const stub = conversation.participant
+  if (!stub) return null
+
+  return {
+    id: stub.id,
+    name: stub.name,
+    fullName: stub.fullName ?? '',
+    role: stub.role ?? '',
+    acronym: stub.acronym,
+    avatarUrl: stub.avatarUrl ?? null,
+    location: stub.location ?? 'Región Orinoquía, Colombia',
+    sector: stub.sector ?? '',
+    category: 'conservacion',
+    needs: [],
+    offer: [],
+    seeking: [],
+    description: '',
+  }
+}
+
 function AppointmentCard({
   appointment,
   children,
   muted = false,
+  onViewProfile,
 }: {
   appointment: Appointment
   children?: React.ReactNode
   muted?: boolean
+  onViewProfile?: (participant: Participant) => void
 }) {
   const p = resolveAppointmentParticipant(appointment)
 
@@ -172,11 +199,22 @@ function AppointmentCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-semibold text-primary">
-            {p.acronym}
-          </div>
+          <ParticipantAvatar participant={p} size="md" className="rounded-xl" />
           <div>
-            <p className="font-semibold text-card-foreground">{p.name}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="font-semibold text-card-foreground">{p.name}</p>
+              {onViewProfile && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => onViewProfile(p)}
+                >
+                  Ver Perfil
+                </Button>
+              )}
+            </div>
             <div className="mt-1">
               <SectorBadge sector={p.sector} />
             </div>
@@ -347,6 +385,7 @@ export function AgendaView({
   onDismissNotification,
   onNotify,
   onSaveEvaluation,
+  onViewProfile,
 }: {
   appointments: Appointment[]
   conversations: Conversation[]
@@ -362,6 +401,7 @@ export function AgendaView({
   onDismissNotification: (id: string) => void
   onNotify?: (message: string) => void
   onSaveEvaluation: (appointmentId: string, input: MeetingEvaluationInput) => void
+  onViewProfile?: (participant: Participant) => void
 }) {
   const [tab, setTab] = useState<Tab>(defaultTab)
   const [bannerDismissed, setBannerDismissed] = useState(false)
@@ -578,7 +618,11 @@ export function AgendaView({
                 {received.map((appt) => {
                   const isResponding = respondingMeetingId === appt.id
                   return (
-                  <AppointmentCard key={appt.id} appointment={appt}>
+                  <AppointmentCard
+                    key={appt.id}
+                    appointment={appt}
+                    onViewProfile={onViewProfile}
+                  >
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button
                         size="sm"
@@ -662,17 +706,7 @@ export function AgendaView({
             />
           ) : (
             conversations.map((c) => {
-              const p =
-                c.participant ??
-                (() => {
-                  const fromRegistry = participantById(c.participantId)
-                  if (!fromRegistry) return null
-                  return {
-                    id: fromRegistry.id,
-                    name: fromRegistry.name,
-                    acronym: fromRegistry.acronym,
-                  }
-                })()
+              const p = resolveConversationParticipant(c)
               if (!p) return null
               const last = c.messages[c.messages.length - 1]
               return (
@@ -682,9 +716,7 @@ export function AgendaView({
                   onClick={() => onOpenConversation(c.participantId, c.meetingId)}
                   className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition-shadow hover:shadow-md"
                 >
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-semibold text-primary">
-                    {p.acronym}
-                  </div>
+                  <ParticipantAvatar participant={p} size="md" className="rounded-xl" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-card-foreground">{p.name}</p>
                     <p className="truncate text-sm text-muted-foreground">{last?.text}</p>
