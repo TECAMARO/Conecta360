@@ -20,6 +20,7 @@ import {
   type Conversation,
   type Participant,
 } from '@/lib/data'
+import { notifyMeetingConfirmationEmail } from '@/lib/email/notify-meeting-confirmation'
 import {
   acceptMeetingRequest,
   agendaSidebarBadgeCount,
@@ -490,6 +491,8 @@ function PlatformApp() {
         await reloadMeetings(activeUserId)
         return
       }
+
+      notifyMeetingConfirmationEmail(id)
 
       const respondedAt = new Date().toISOString()
       const crossNotifications = acceptMeetingRequest(

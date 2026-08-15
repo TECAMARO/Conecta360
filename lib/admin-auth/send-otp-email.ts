@@ -1,5 +1,10 @@
-import nodemailer from 'nodemailer'
 import { MASTER_ADMIN_EMAIL } from '@/lib/admin-auth/constants'
+import {
+  createSmtpTransport,
+  getSmtpFromAddress,
+  isLocalDevWithoutSmtp,
+  isSmtpConfigured,
+} from '@/lib/email/smtp'
 
 export type SendAdminOtpResult = {
   sentTo: string
@@ -7,30 +12,12 @@ export type SendAdminOtpResult = {
   devCode?: string
 }
 
-function env(name: string): string | undefined {
-  const value = process.env[name]?.trim()
-  return value ? value : undefined
-}
-
 function smtpConfigured(): boolean {
-  return Boolean(env('SMTP_HOST') && env('SMTP_USER') && env('SMTP_PASS'))
+  return isSmtpConfigured()
 }
 
 function buildTransport() {
-  const port = Number(env('SMTP_PORT') ?? 587)
-  return nodemailer.createTransport({
-    host: env('SMTP_HOST'),
-    port,
-    secure: port === 465,
-    auth: {
-      user: env('SMTP_USER'),
-      pass: env('SMTP_PASS'),
-    },
-  })
-}
-
-function isLocalDevWithoutSmtp(): boolean {
-  return process.env.NODE_ENV !== 'production' && !smtpConfigured()
+  return createSmtpTransport()
 }
 
 /**
@@ -76,10 +63,7 @@ export async function sendAdminOtpEmail(code: string): Promise<SendAdminOtpResul
   `
 
   if (smtpConfigured()) {
-    const from =
-      env('SMTP_FROM') ||
-      env('SMTP_USER') ||
-      `Conecta360 <${MASTER_ADMIN_EMAIL}>`
+    const from = getSmtpFromAddress(MASTER_ADMIN_EMAIL)
 
     const transport = buildTransport()
     await transport.sendMail({ from, to, subject, text, html })
@@ -91,7 +75,9 @@ export async function sendAdminOtpEmail(code: string): Promise<SendAdminOtpResul
     return { sentTo: to, devCode: code }
   }
 
-  const missing = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter((key) => !env(key))
+  const missing = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter(
+    (key) => !process.env[key]?.trim(),
+  )
   throw new Error(
     `SMTP no configurado (faltan: ${missing.join(', ')}). Añádelas en .env.local y reinicia el servidor (npm run dev). Usa los mismos valores de Supabase → Authentication → SMTP Settings.`,
   )

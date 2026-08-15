@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { notifyMeetingCancellationEmail } from '@/lib/email/notify-meeting-cancellation'
 import {
   adminCancelMeeting,
   canAdminForceCancel,
@@ -14,16 +14,14 @@ import {
   type AdminProfileRow,
 } from '@/lib/supabase/admin-repository'
 import { supabase } from '@/src/lib/supabaseClient'
+import { AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
-  ArrowLeft,
   Ban,
   Building2,
   CalendarClock,
   Loader2,
-  RefreshCw,
-  Shield,
   Users,
 } from 'lucide-react'
 
@@ -165,6 +163,7 @@ export function AdminDashboard() {
     setCancellingId(meeting.id)
     try {
       await adminCancelMeeting(meeting.id)
+      notifyMeetingCancellationEmail(meeting.id)
       showToast('Reunión cancelada por administrador.')
       await loadData(true)
     } catch (err) {
@@ -196,44 +195,12 @@ export function AdminDashboard() {
   const filteredMeetings = filterAdminMeetings(meetings, meetingFilter)
 
   return (
-    <div className="min-h-dvh bg-[#f4f7f5]">
-      <header className="border-b border-[#dde8d8] bg-[#1a3c34] text-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#8ac441]/20">
-              <Shield className="size-5 text-[#8ac441]" aria-hidden="true" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
-                Administración Conecta360
-              </h1>
-              <p className="text-sm text-white/70">Auditoría de usuarios y gestión de reuniones</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
-              onClick={() => void loadData()}
-              disabled={refreshing}
-            >
-              <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} aria-hidden="true" />
-              Actualizar
-            </Button>
-            <Link
-              href="/plataforma"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-white/20 bg-transparent px-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-              Volver a plataforma
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-8">
+    <AdminShell
+      title="Administración Conecta360"
+      subtitle="Auditoría de usuarios y gestión operativa de reuniones"
+      refreshing={refreshing}
+      onRefresh={() => void loadData()}
+    >
         {/* Módulo A */}
         <section className="rounded-2xl border border-[#dde8d8] bg-white shadow-sm">
           <div className="flex items-center gap-2 border-b border-[#eef3eb] px-5 py-4">
@@ -395,7 +362,6 @@ export function AdminDashboard() {
             </table>
           </div>
         </section>
-      </main>
 
       {toast && (
         <div
@@ -408,6 +374,6 @@ export function AdminDashboard() {
           {toast.message}
         </div>
       )}
-    </div>
+    </AdminShell>
   )
 }

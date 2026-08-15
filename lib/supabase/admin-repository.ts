@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabaseClient'
+import type { AdminEvaluationRow } from '@/lib/admin/analytics'
 import type { MeetingRow, ProfileRow } from '@/lib/supabase/database.types'
 import { dbMeetingStatusToApp } from '@/lib/supabase/meeting-status'
 import { formatPhysicalTable } from '@/lib/physical-tables'
@@ -179,6 +180,12 @@ export function filterAdminMeetings(
     }
     return true
   })
+}
+
+export async function fetchAdminEvaluations(): Promise<AdminEvaluationRow[]> {
+  const { data, error } = await supabase.from('evaluations').select('*')
+  if (error) throw new Error(error.message)
+  return (data ?? []) as AdminEvaluationRow[]
 }
 
 export function canAdminForceCancel(status: string): boolean {

@@ -64,6 +64,8 @@ export type Database = {
           modality: string
           table_number: number
           created_at: string | null
+          confirmation_email_sent_at: string | null
+          cancellation_email_sent_at: string | null
         }
         Insert: {
           id?: string
@@ -152,6 +154,14 @@ export type Database = {
       admin_cancel_meeting: {
         Args: { p_meeting_id: string }
         Returns: MeetingRow
+      }
+      claim_meeting_confirmation_email: {
+        Args: { p_meeting_id: string }
+        Returns: MeetingRow | null
+      }
+      claim_meeting_cancellation_email: {
+        Args: { p_meeting_id: string }
+        Returns: MeetingRow | null
       }
       issue_admin_otp_challenge: {
         Args: { p_otp_hash: string; p_expires_at: string }
