@@ -5,10 +5,9 @@ import {
   buildMeetingCancellationText,
 } from '@/lib/email/meeting-cancellation-template'
 import { displayOrg } from '@/lib/email/meeting-email-shared'
+import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
 import {
-  createSmtpTransport,
   getPublicSiteUrl,
-  getSmtpFromAddress,
   isLocalDevWithoutSmtp,
   isSmtpConfigured,
 } from '@/lib/email/smtp'
@@ -69,9 +68,6 @@ export async function sendMeetingCancellationEmails(args: {
     return { sent: false, recipients: [], skippedReason: 'smtp_not_configured' }
   }
 
-  const from = getSmtpFromAddress('noreply@conecta360.local')
-  const transport = createSmtpTransport()
-
   for (const party of parties) {
     const email = party.profile.email?.trim()
     if (!email) continue
@@ -85,12 +81,12 @@ export async function sendMeetingCancellationEmails(args: {
       siteUrl,
     })
 
-    await transport.sendMail({
-      from,
+    await sendTransactionalMail({
       to: email,
       subject,
       text: buildMeetingCancellationText(templateData),
       html: buildMeetingCancellationHtml(templateData),
+      entityRef: meeting.id,
     })
     recipients.push(email)
   }

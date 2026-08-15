@@ -4,6 +4,7 @@ import {
 } from '@/lib/email/meeting-confirmation-template'
 import { formatPhysicalTable } from '@/lib/physical-tables'
 import { escapeHtml } from '@/lib/email/meeting-email-shared'
+import { transactionalLogoImgHtml } from '@/lib/email/send-transactional-mail'
 
 export type MeetingCancellationTemplateData = {
   recipientOrganization: string
@@ -39,24 +40,24 @@ export function buildMeetingCancellationTemplateData(args: {
 }
 
 export function buildMeetingCancellationSubject(): string {
-  return 'Reunión cancelada – Rueda de Negocios Conecta360'
+  return 'Conecta360 · Reunión cancelada – Rueda de Negocios Orinoquía 2026'
 }
 
 export function buildMeetingCancellationText(data: MeetingCancellationTemplateData): string {
   return [
     `Hola ${data.recipientOrganization},`,
     '',
-    `Tu reunión con ${data.counterpartyOrganization} ha sido CANCELADA por una de las partes.`,
+    `Tu reunión con ${data.counterpartyOrganization} ha sido cancelada por una de las partes.`,
     'Por política de la plataforma no se identifica quién realizó la cancelación.',
     '',
     'Detalles de la reunión afectada:',
-    `Fecha: ${data.meetingDateLabel}`,
-    `Hora: ${data.startTime} – ${data.endTime}`,
-    `Ubicación: ${data.tableLabel}`,
+    `- Fecha: ${data.meetingDateLabel}`,
+    `- Hora: ${data.startTime} – ${data.endTime}`,
+    `- Ubicación: ${data.tableLabel}`,
     '',
     `Revisa tu agenda: ${data.platformUrl}`,
     '',
-    'Este es un correo automático generado por la plataforma oficial de la Rueda de Negocios.',
+    'Correo automático de Conecta360 (Rueda de Negocios Orinoquía 2026).',
   ].join('\n')
 }
 
@@ -71,7 +72,7 @@ export function buildMeetingCancellationHtml(data: MeetingCancellationTemplateDa
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #dde8d8;border-radius:14px;overflow:hidden">
           <tr>
             <td style="padding:28px 28px 16px;text-align:center;background:linear-gradient(180deg,#eef3ea 0%,#ffffff 100%)">
-              <img src="${data.logoUrl}" alt="Conecta360" width="180" style="max-width:180px;height:auto;display:inline-block" />
+              ${transactionalLogoImgHtml()}
             </td>
           </tr>
           <tr>
@@ -85,7 +86,7 @@ export function buildMeetingCancellationHtml(data: MeetingCancellationTemplateDa
               </p>
               <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#5a6b62">
                 Tu reunión con <strong style="color:#1a3c34">${escapeHtml(data.counterpartyOrganization)}</strong>
-                ha sido <strong style="color:#c0392b">CANCELADA</strong> por una de las partes.
+                ha sido <strong style="color:#c0392b">cancelada</strong> por una de las partes.
               </p>
               <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#5a6b62">
                 Por política de la plataforma <strong>no se identifica quién realizó la cancelación</strong>.
@@ -98,9 +99,9 @@ export function buildMeetingCancellationHtml(data: MeetingCancellationTemplateDa
                 <tr>
                   <td style="padding:18px 20px">
                     <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#1a3c34">Reunión y horario cancelados</p>
-                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34">📅 <strong>Fecha:</strong> ${escapeHtml(data.meetingDateLabel)}</p>
-                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34">⏰ <strong>Hora:</strong> ${escapeHtml(data.startTime)} – ${escapeHtml(data.endTime)}</p>
-                    <p style="margin:0;font-size:14px;line-height:1.5;color:#1a3c34">📍 <strong>Ubicación:</strong> ${escapeHtml(data.tableLabel)}</p>
+                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34"><strong>Fecha:</strong> ${escapeHtml(data.meetingDateLabel)}</p>
+                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34"><strong>Hora:</strong> ${escapeHtml(data.startTime)} – ${escapeHtml(data.endTime)}</p>
+                    <p style="margin:0;font-size:14px;line-height:1.5;color:#1a3c34"><strong>Ubicación:</strong> ${escapeHtml(data.tableLabel)}</p>
                   </td>
                 </tr>
               </table>

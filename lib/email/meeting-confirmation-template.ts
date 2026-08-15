@@ -3,6 +3,7 @@ import { formatPhysicalTable } from '@/lib/physical-tables'
 import { slotIdFromMeetingDayAndTime } from '@/lib/meeting-slots'
 import { parseAppointmentDateRange } from '@/lib/agenda-export'
 import { escapeHtml } from '@/lib/email/meeting-email-shared'
+import { transactionalLogoImgHtml } from '@/lib/email/send-transactional-mail'
 
 export type MeetingConfirmationTemplateData = {
   requesterOrganization: string
@@ -111,23 +112,24 @@ export function buildMeetingConfirmationTemplateData(args: {
 }
 
 export function buildMeetingConfirmationSubject(): string {
-  return '¡Cita confirmada! – Rueda de Negocios Conecta360'
+  return 'Conecta360 · Cita confirmada – Rueda de Negocios Orinoquía 2026'
 }
 
 export function buildMeetingConfirmationText(data: MeetingConfirmationTemplateData): string {
   return [
     `Hola ${data.requesterOrganization},`,
     '',
-    `Tu reunión con ${data.counterpartyOrganization} ha sido CONFIRMADA.`,
+    `Tu reunión con ${data.counterpartyOrganization} ha sido confirmada.`,
     '',
     'Detalles de tu agendamiento:',
-    `Fecha: ${data.meetingDateLabel}`,
-    `Hora: ${data.startTime} – ${data.endTime}`,
-    `Ubicación: ${data.tableLabel}`,
+    `- Fecha: ${data.meetingDateLabel}`,
+    `- Hora: ${data.startTime} – ${data.endTime}`,
+    `- Ubicación: ${data.tableLabel}`,
     '',
     `Revisa tu agenda: ${data.platformUrl}`,
     '',
-    'Este es un correo automático generado por la plataforma oficial de la Rueda de Negocios.',
+    'Correo automático de la plataforma Conecta360 (Rueda de Negocios Orinoquía 2026).',
+    'Si tienes dudas, responde a este correo.',
   ].join('\n')
 }
 
@@ -142,7 +144,7 @@ export function buildMeetingConfirmationHtml(data: MeetingConfirmationTemplateDa
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #dde8d8;border-radius:14px;overflow:hidden">
           <tr>
             <td style="padding:28px 28px 16px;text-align:center;background:linear-gradient(180deg,#eef3ea 0%,#ffffff 100%)">
-              <img src="${data.logoUrl}" alt="Conecta360" width="180" style="max-width:180px;height:auto;display:inline-block" />
+              ${transactionalLogoImgHtml()}
             </td>
           </tr>
           <tr>
@@ -150,13 +152,13 @@ export function buildMeetingConfirmationHtml(data: MeetingConfirmationTemplateDa
               <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8ac441">
                 Rueda de Negocios · Orinoquía 2026
               </p>
-              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#1a3c34">¡Tu cita fue confirmada!</h1>
+              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#1a3c34">Tu cita fue confirmada</h1>
               <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#5a6b62">
                 Hola <strong style="color:#1a3c34">${escapeHtml(data.requesterOrganization)}</strong>,
               </p>
               <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#5a6b62">
                 Tu reunión con <strong style="color:#1a3c34">${escapeHtml(data.counterpartyOrganization)}</strong>
-                ha sido <strong style="color:#1a3c34">CONFIRMADA</strong>.
+                ha sido <strong style="color:#1a3c34">confirmada</strong>.
               </p>
             </td>
           </tr>
@@ -166,9 +168,9 @@ export function buildMeetingConfirmationHtml(data: MeetingConfirmationTemplateDa
                 <tr>
                   <td style="padding:18px 20px">
                     <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#1a3c34">Detalles de tu agendamiento</p>
-                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34">📅 <strong>Fecha:</strong> ${escapeHtml(data.meetingDateLabel)}</p>
-                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34">⏰ <strong>Hora:</strong> ${escapeHtml(data.startTime)} – ${escapeHtml(data.endTime)}</p>
-                    <p style="margin:0;font-size:14px;line-height:1.5;color:#1a3c34">📍 <strong>Ubicación:</strong> ${escapeHtml(data.tableLabel)}</p>
+                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34"><strong>Fecha:</strong> ${escapeHtml(data.meetingDateLabel)}</p>
+                    <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#1a3c34"><strong>Hora:</strong> ${escapeHtml(data.startTime)} – ${escapeHtml(data.endTime)}</p>
+                    <p style="margin:0;font-size:14px;line-height:1.5;color:#1a3c34"><strong>Ubicación:</strong> ${escapeHtml(data.tableLabel)}</p>
                   </td>
                 </tr>
               </table>
@@ -183,7 +185,7 @@ export function buildMeetingConfirmationHtml(data: MeetingConfirmationTemplateDa
                 Ver mi agenda
               </a>
               <p style="margin:20px 0 0;font-size:12px;line-height:1.5;color:#8a9a92">
-                Este es un correo automático generado por la plataforma oficial de la Rueda de Negocios.
+                Este es un correo automático de Conecta360. Puedes responder si necesitas asistencia.
               </p>
             </td>
           </tr>
