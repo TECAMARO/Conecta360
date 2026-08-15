@@ -32,8 +32,8 @@ async function mergeProfileWithRemote(form: UserProfile, userId: string): Promis
     offer: form.offer.length > 0 ? form.offer : remote.offer,
     seeking: form.seeking.length > 0 ? form.seeking : remote.seeking,
     isPublished: form.isPublished,
-    photoUrl: form.photoUrl ?? remote.photoUrl,
-    brochure: form.brochure ?? remote.brochure,
+    photoUrl: form.photoUrl === undefined ? remote.photoUrl : form.photoUrl,
+    brochure: form.brochure === undefined ? remote.brochure : form.brochure,
   }
 }
 
