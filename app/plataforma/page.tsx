@@ -38,6 +38,7 @@ import { clearAuthSession, getAuthSession } from '@/lib/auth'
 import { clearUserProfile, getProfileOrDefault, setUserProfile, type UserProfile } from '@/lib/profile'
 import { restoreSupabaseSession, signOutSupabase } from '@/lib/supabase/auth-service'
 import { fetchDirectoryParticipants } from '@/lib/directory'
+import { fetchProfilesByIds } from '@/lib/supabase/profiles-repository'
 import { setParticipantRegistry, mergeParticipantRegistry } from '@/lib/participant-registry'
 import {
   cancelPendingInSlotExcept,
@@ -183,6 +184,19 @@ function PlatformApp() {
       fetchUserMeetings(activeUserId),
       fetchAllActiveMeetings(),
     ])
+
+    const participantIds = [
+      ...new Set(userAppts.map((appt) => appt.participantId).filter(Boolean)),
+    ]
+    if (participantIds.length > 0) {
+      try {
+        const meetingParticipants = await fetchProfilesByIds(participantIds, activeUserId)
+        mergeParticipantRegistry(meetingParticipants)
+      } catch (err) {
+        console.warn('[reloadMeetings] No se pudieron cargar perfiles de contrapartes:', err)
+      }
+    }
+
     appointmentsSnapshotRef.current = userAppts
     setAppointments(userAppts)
     setSlotOccupancy(globalOccupancy)

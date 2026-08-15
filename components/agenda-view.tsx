@@ -6,7 +6,7 @@ import { SectorBadge } from '@/components/sector-badge'
 import { Button } from '@/components/ui/button'
 import { AgendaExportActions } from '@/components/agenda-export-actions'
 import { AgendaPrintSheet } from '@/components/agenda-print-sheet'
-import { participantById, type Appointment, type Conversation } from '@/lib/data'
+import { participantById, type Appointment, type Conversation, type Participant } from '@/lib/data'
 import {
   filterConfirmed,
   filterCancelledMeetings,
@@ -122,6 +122,26 @@ function MeetingStatusBadge({ appointment }: { appointment: Appointment }) {
   return null
 }
 
+function resolveAppointmentParticipant(appointment: Appointment): Participant {
+  const cached = participantById(appointment.participantId)
+  if (cached) return cached
+
+  return {
+    id: appointment.participantId,
+    name: 'Organización participante',
+    fullName: '',
+    role: '',
+    acronym: '?',
+    category: 'conservacion',
+    needs: [],
+    location: 'Región Orinoquía, Colombia',
+    offer: [],
+    seeking: [],
+    description: '',
+    sector: '',
+  }
+}
+
 function AppointmentCard({
   appointment,
   children,
@@ -131,8 +151,7 @@ function AppointmentCard({
   children?: React.ReactNode
   muted?: boolean
 }) {
-  const p = participantById(appointment.participantId)
-  if (!p) return null
+  const p = resolveAppointmentParticipant(appointment)
 
   return (
     <div
@@ -537,7 +556,7 @@ export function AgendaView({
                 description="Cuando alguien te proponga una reunión, podrás aceptarla o rechazarla aquí."
               />
             ) : (
-              <div className="space-y-3">
+              <div className="flex flex-col gap-3">
                 {received.map((appt) => {
                   const isResponding = respondingMeetingId === appt.id
                   return (
@@ -579,7 +598,7 @@ export function AgendaView({
                 description="Explora participantes y envía tu primera propuesta de reunión."
               />
             ) : (
-              <div className="space-y-3">
+              <div className="flex flex-col gap-3">
                 {sent.map((appt) => {
                   const isResponding = respondingMeetingId === appt.id
                   return (

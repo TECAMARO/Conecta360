@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import type { UserProfile } from '@/lib/profile'
 import {
   buildProfileWritePayload,
+  profileRowToAgendaParticipant,
   profileRowToParticipant,
   profileRowToUserProfile,
 } from '@/lib/supabase/mappers'
@@ -170,6 +171,30 @@ export async function fetchPublishedProfiles(currentUserId?: string | null): Pro
   for (const row of rows) {
     const brochure = rowToBrochure(row)
     const participant = profileRowToParticipant(row, {
+      isCurrentUser: currentUserId ? row.id === currentUserId : false,
+      brochure,
+    })
+    if (participant) participants.push(participant)
+  }
+
+  return participants
+}
+
+/** Perfiles de contrapartes en reuniones (p. ej. solicitudes realtime en Mi Agenda). */
+export async function fetchProfilesByIds(
+  profileIds: string[],
+  currentUserId?: string | null,
+): Promise<Participant[]> {
+  const ids = [...new Set(profileIds.filter(Boolean))]
+  if (ids.length === 0) return []
+
+  const { data, error } = await supabase.from('profiles').select('*').in('id', ids)
+  if (error) throw new Error(error.message)
+
+  const participants: Participant[] = []
+  for (const row of (data ?? []) as ProfileRow[]) {
+    const brochure = rowToBrochure(row)
+    const participant = profileRowToAgendaParticipant(row, {
       isCurrentUser: currentUserId ? row.id === currentUserId : false,
       brochure,
     })

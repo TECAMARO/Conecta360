@@ -92,9 +92,17 @@ export function profileRowToParticipant(
 ): Participant | null {
   if (!row.is_published) return null
 
+  return profileRowToAgendaParticipant(row, options)
+}
+
+/** Perfil visible en Mi Agenda aunque el usuario aún no esté en el directorio cacheado. */
+export function profileRowToAgendaParticipant(
+  row: ProfileRow,
+  options?: { isCurrentUser?: boolean; brochure?: CorporateBrochure | null },
+): Participant | null {
   const organization = (row.organization_name ?? '').trim()
   const fullName = (row.full_name ?? '').trim()
-  const displayName = organization || fullName
+  const displayName = organization || fullName || (row.email ?? '').trim()
   if (!displayName) return null
 
   return {
@@ -111,7 +119,7 @@ export function profileRowToParticipant(
     seeking: row.seeks ?? [],
     description: (row.description ?? '').trim(),
     sector: (row.sector ?? '').trim(),
-    isPublished: true,
+    isPublished: row.is_published === true,
     isCurrentUser: options?.isCurrentUser,
     brochure: options?.brochure ?? null,
   }
