@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { PasswordInput } from '@/components/auth/password-input'
 import { SectorSelect, profileInputClass } from '@/components/sector-select'
 import { Button } from '@/components/ui/button'
 import { signUpWithEmail } from '@/lib/supabase/auth-service'
@@ -135,16 +136,13 @@ function RegistroForm() {
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
                 Contraseña
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
-                required
                 autoComplete="new-password"
                 placeholder="Mínimo 8 caracteres"
                 minLength={8}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={profileInputClass}
+                onChange={setPassword}
               />
             </div>
           </div>

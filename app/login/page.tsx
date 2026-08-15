@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { PasswordInput } from '@/components/auth/password-input'
 import { Button } from '@/components/ui/button'
 import { signInWithEmail, initiateMasterAdminOtpFlow, requiresMasterAdminOtp } from '@/lib/supabase/auth-service'
 import { cn } from '@/lib/utils'
@@ -82,15 +83,12 @@ function LoginForm() {
           <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
             Contraseña
           </label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
-            required
             autoComplete="current-password"
             placeholder="••••••••"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
+            onChange={setPassword}
           />
         </div>
 
