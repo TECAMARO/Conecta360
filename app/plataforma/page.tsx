@@ -841,6 +841,7 @@ function PlatformApp() {
               unreadCount={unreadCount}
               userName={userDisplayName}
               directoryParticipants={directoryParticipants}
+              showOnboardingBanner={!userProfile.isPublished}
               onExplore={() => navigate('explorar')}
               onAgenda={() => navigate('agenda')}
               onProfile={() => navigate('perfil')}

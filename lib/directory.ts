@@ -27,7 +27,7 @@ export function profileToParticipant(
     avatarUrl: profile.photoUrl ?? null,
     category: sectorToCategory(profile.sector),
     needs: inferNeedsFromSeeking(profile.seeking),
-    location: profile.location.trim() || 'Región Orinoquía, Colombia',
+    location: profile.location.trim(),
     offer: profile.offer,
     seeking: profile.seeking,
     description: profile.description.trim(),

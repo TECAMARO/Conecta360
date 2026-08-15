@@ -10,11 +10,13 @@ import { SectorSelect, profileInputClass } from '@/components/sector-select'
 import { cn } from '@/lib/utils'
 import { profileToParticipant } from '@/lib/directory'
 import {
-  canPublishProfile,
   EMPTY_PROFILE,
+  getPublishProfileMissingFields,
   publishProfile,
+  publishProfileValidationMessage,
   profileInitials,
   setUserProfile,
+  type PublishProfileField,
   type UserProfile,
 } from '@/lib/profile'
 import { getAuthSession } from '@/lib/auth'
@@ -41,7 +43,19 @@ import {
   Eye,
   FileText,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react'
+
+function PublishFieldError({ show }: { show?: boolean }) {
+  if (!show) return null
+  return (
+    <AlertTriangle
+      className="size-4 shrink-0 text-red-600"
+      aria-hidden="true"
+      title="Campo requerido para publicar"
+    />
+  )
+}
 
 function ProfileAvatar({
   fullName,
@@ -124,6 +138,7 @@ export function ProfileView() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [publishHint, setPublishHint] = useState<string | null>(null)
+  const [publishMissingFields, setPublishMissingFields] = useState<PublishProfileField[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -181,21 +196,26 @@ export function ProfileView() {
   }
 
   async function handlePublish() {
-    if (!canPublishProfile(profile)) {
-      setPublishHint(
-        'Completa nombre, organización, sector, descripción, al menos una etiqueta en Qué Ofrece y Qué Busca antes de publicar.',
-      )
+    const missing = getPublishProfileMissingFields(profile)
+    if (missing.length > 0) {
+      setPublishMissingFields(missing)
+      setPublishHint(publishProfileValidationMessage(missing))
       setEditing(true)
       return
     }
     try {
       const published = publishProfile(profile)
       await persist(published)
+      setPublishMissingFields([])
       setEditing(false)
       setPublishHint('¡Perfil publicado! Ya aparece en Explorar Participantes.')
     } catch {
       /* error shown in banner */
     }
+  }
+
+  function clearPublishFieldError(field: PublishProfileField) {
+    setPublishMissingFields((prev) => prev.filter((item) => item !== field))
   }
 
   async function handleBrochureUpload(file: File) {
@@ -301,7 +321,14 @@ export function ProfileView() {
         )}
 
         {publishHint && (
-          <p className="rounded-xl border border-[#8ac441]/30 bg-[#e8f0e4]/70 px-4 py-3 text-sm text-[#1a3c34]">
+          <p
+            className={cn(
+              'rounded-xl border px-4 py-3 text-sm',
+              publishMissingFields.length > 0
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-[#8ac441]/30 bg-[#e8f0e4]/70 text-[#1a3c34]',
+            )}
+          >
             {publishHint}
           </p>
         )}
@@ -326,7 +353,7 @@ export function ProfileView() {
               </p>
               <p className="mt-1 flex items-center gap-1 text-xs text-emerald-50/80">
                 <MapPin className="size-3.5" aria-hidden="true" />
-                {profile.location || 'Ubicación'}
+                {profile.location || 'Ubicación/País'}
               </p>
               {editing && (
                 <p className="mt-1 text-xs text-white/70">Toca el ícono de cámara para cambiar tu foto</p>
@@ -342,7 +369,11 @@ export function ProfileView() {
               label="Nombre completo"
               value={profile.fullName}
               editing={editing}
-              onChange={(v) => setProfile((p) => ({ ...p, fullName: v }))}
+              hasError={publishMissingFields.includes('fullName')}
+              onChange={(v) => {
+                clearPublishFieldError('fullName')
+                setProfile((p) => ({ ...p, fullName: v }))
+              }}
             />
             <Field
               icon={Briefcase}
@@ -356,24 +387,38 @@ export function ProfileView() {
               label="Empresa u Organización"
               value={profile.organization}
               editing={editing}
-              onChange={(v) => setProfile((p) => ({ ...p, organization: v }))}
+              hasError={publishMissingFields.includes('organization')}
+              onChange={(v) => {
+                clearPublishFieldError('organization')
+                setProfile((p) => ({ ...p, organization: v }))
+              }}
             />
             <Field
               icon={MapPin}
-              label="Ubicación"
+              label="Ubicación/País"
               value={profile.location}
               editing={editing}
-              onChange={(v) => setProfile((p) => ({ ...p, location: v }))}
+              placeholder="Ej. Colombia, Venezuela, Ecuador…"
+              hasError={publishMissingFields.includes('location')}
+              onChange={(v) => {
+                clearPublishFieldError('location')
+                setProfile((p) => ({ ...p, location: v }))
+              }}
             />
             {editing ? (
               <SectorSelect
                 value={profile.sector}
-                onChange={(sector) => setProfile((p) => ({ ...p, sector }))}
+                hasError={publishMissingFields.includes('sector')}
+                onChange={(sector) => {
+                  clearPublishFieldError('sector')
+                  setProfile((p) => ({ ...p, sector }))
+                }}
               />
             ) : (
               <div>
-                <p className="mb-1.5 text-sm font-medium text-foreground">
+                <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-foreground">
                   Sector Económico / Categoría
+                  <PublishFieldError show={publishMissingFields.includes('sector')} />
                 </p>
                 <SectorBadge sector={profile.sector} />
                 {!profile.sector && (
@@ -386,17 +431,23 @@ export function ProfileView() {
               <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-foreground">
                 <FileText className="size-4 text-primary" aria-hidden="true" />
                 Resumen / Descripción de la organización
+                <PublishFieldError show={publishMissingFields.includes('description')} />
               </p>
               {editing ? (
                 <textarea
                   value={profile.description}
-                  onChange={(e) => setProfile((p) => ({ ...p, description: e.target.value }))}
+                  onChange={(e) => {
+                    clearPublishFieldError('description')
+                    setProfile((p) => ({ ...p, description: e.target.value }))
+                  }}
                   rows={4}
                   maxLength={600}
                   placeholder="Describe brevemente la misión, propuesta de valor y enfoque de tu organización…"
                   className={cn(
                     profileInputClass,
                     'resize-y border-input bg-background focus-visible:ring-ring/30',
+                    publishMissingFields.includes('description') &&
+                      'border-red-300 ring-1 ring-red-200 focus-visible:ring-red-200/60',
                   )}
                 />
               ) : (
@@ -412,7 +463,11 @@ export function ProfileView() {
             hint="Selecciona una o varias capacidades estandarizadas. Puedes añadir etiquetas personalizadas."
             options={OFFER_TAG_OPTIONS}
             tags={profile.offer}
-            onChange={(offer) => setProfile((p) => ({ ...p, offer }))}
+            hasError={publishMissingFields.includes('offer')}
+            onChange={(offer) => {
+              clearPublishFieldError('offer')
+              setProfile((p) => ({ ...p, offer }))
+            }}
             disabled={!editing}
           />
 
@@ -421,7 +476,11 @@ export function ProfileView() {
             hint="Selecciona tus objetivos de networking. Puedes añadir etiquetas personalizadas."
             options={SEEKING_TAG_OPTIONS}
             tags={profile.seeking}
-            onChange={(seeking) => setProfile((p) => ({ ...p, seeking }))}
+            hasError={publishMissingFields.includes('seeking')}
+            onChange={(seeking) => {
+              clearPublishFieldError('seeking')
+              setProfile((p) => ({ ...p, seeking }))
+            }}
             disabled={!editing}
           />
         </div>
@@ -462,12 +521,16 @@ function Field({
   label,
   value,
   editing,
+  placeholder,
+  hasError = false,
   onChange,
 }: {
   icon: typeof User
   label: string
   value: string
   editing: boolean
+  placeholder?: string
+  hasError?: boolean
   onChange: (value: string) => void
 }) {
   return (
@@ -475,13 +538,19 @@ function Field({
       <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-foreground">
         <Icon className="size-4 text-primary" aria-hidden="true" />
         {label}
+        <PublishFieldError show={hasError} />
       </p>
       {editing ? (
         <input
           type="text"
           value={value}
+          placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className={cn(profileInputClass, 'border-input bg-background focus-visible:ring-ring/30')}
+          className={cn(
+            profileInputClass,
+            'border-input bg-background focus-visible:ring-ring/30',
+            hasError && 'border-red-300 ring-1 ring-red-200 focus-visible:ring-red-200/60',
+          )}
         />
       ) : (
         <p className="text-sm text-muted-foreground">{value || '—'}</p>

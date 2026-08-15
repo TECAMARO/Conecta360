@@ -23,7 +23,7 @@ export const EMPTY_PROFILE: UserProfile = {
   role: '',
   organization: '',
   sector: '',
-  location: 'Región Orinoquía, Colombia',
+  location: '',
   description: '',
   offer: [],
   seeking: [],
@@ -79,7 +79,7 @@ function normalizeProfile(raw: Record<string, unknown>): UserProfile {
     role: typeof raw.role === 'string' ? raw.role : '',
     organization: typeof raw.organization === 'string' ? raw.organization : '',
     sector: typeof raw.sector === 'string' ? raw.sector : '',
-    location: typeof raw.location === 'string' ? raw.location : EMPTY_PROFILE.location,
+    location: typeof raw.location === 'string' ? raw.location : '',
     description: typeof raw.description === 'string' ? raw.description : '',
     offer: Array.isArray(raw.offer) ? raw.offer.filter((x): x is string => typeof x === 'string') : [],
     seeking: Array.isArray(raw.seeking)
@@ -186,16 +186,47 @@ export function clearUserProfile() {
   localStorage.removeItem(PROFILE_STORAGE_KEY)
 }
 
+/** Fields validated before publishing to the directory. */
+export type PublishProfileField =
+  | 'fullName'
+  | 'organization'
+  | 'sector'
+  | 'location'
+  | 'description'
+  | 'offer'
+  | 'seeking'
+
+const PUBLISH_FIELD_LABELS: Record<PublishProfileField, string> = {
+  fullName: 'nombre completo',
+  organization: 'empresa u organización',
+  sector: 'sector económico / categoría',
+  location: 'ubicación/país',
+  description: 'resumen / descripción de la organización',
+  offer: 'qué ofrece',
+  seeking: 'qué busca',
+}
+
+export function getPublishProfileMissingFields(profile: UserProfile): PublishProfileField[] {
+  const missing: PublishProfileField[] = []
+  if (!profile.fullName.trim()) missing.push('fullName')
+  if (!profile.organization.trim()) missing.push('organization')
+  if (!profile.sector.trim()) missing.push('sector')
+  if (!profile.location.trim()) missing.push('location')
+  if (!profile.description.trim()) missing.push('description')
+  if (profile.offer.length === 0) missing.push('offer')
+  if (profile.seeking.length === 0) missing.push('seeking')
+  return missing
+}
+
+export function publishProfileValidationMessage(missing: PublishProfileField[]): string {
+  if (missing.length === 0) return ''
+  const labels = missing.map((field) => PUBLISH_FIELD_LABELS[field])
+  return `Completa ${labels.join(', ')} antes de publicar.`
+}
+
 /** Minimum fields required before publishing to the directory. */
 export function canPublishProfile(profile: UserProfile): boolean {
-  return (
-    profile.fullName.trim().length > 0 &&
-    profile.organization.trim().length > 0 &&
-    profile.sector.trim().length > 0 &&
-    profile.description.trim().length > 0 &&
-    profile.offer.length > 0 &&
-    profile.seeking.length > 0
-  )
+  return getPublishProfileMissingFields(profile).length === 0
 }
 
 /** Subtitle shown under the user name in the platform sidebar. */

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { SECTORS } from '@/lib/event-config'
 import { cn } from '@/lib/utils'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Search, AlertTriangle } from 'lucide-react'
 
 const inputClass =
   'w-full rounded-lg border border-[#dde8d8] bg-white px-3.5 py-2.5 text-sm text-[#1a3c34] outline-none transition-colors placeholder:text-[#5a6b62]/60 focus:border-[#8ac441] focus:ring-2 focus:ring-[#8ac441]/25'
@@ -25,6 +25,7 @@ export function SectorSelect({
   onOpenChange,
   id = 'sector',
   required = true,
+  hasError = false,
   className,
   label = 'Sector Económico / Categoría',
 }: {
@@ -33,6 +34,7 @@ export function SectorSelect({
   onOpenChange?: (open: boolean) => void
   id?: string
   required?: boolean
+  hasError?: boolean
   className?: string
   label?: string
 }) {
@@ -186,8 +188,15 @@ export function SectorSelect({
 
   return (
     <div className={cn('relative', className)}>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+      <label htmlFor={id} className="mb-1.5 flex items-center gap-2 text-sm font-medium text-[#1a3c34]">
         {label}
+        {hasError ? (
+          <AlertTriangle
+            className="size-4 shrink-0 text-red-600"
+            aria-hidden="true"
+            title="Campo requerido para publicar"
+          />
+        ) : null}
       </label>
       <button
         ref={triggerRef}
@@ -200,6 +209,7 @@ export function SectorSelect({
           inputClass,
           'flex items-center justify-between text-left',
           !value && 'text-[#5a6b62]/60',
+          hasError && 'border-red-300 ring-1 ring-red-200',
         )}
       >
         <span className="truncate">{value || 'Selecciona un sector'}</span>

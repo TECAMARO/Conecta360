@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { profileInputClass } from '@/components/sector-select'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, AlertTriangle } from 'lucide-react'
 
 export function StandardTagSelector({
   label,
@@ -12,6 +12,7 @@ export function StandardTagSelector({
   tags,
   onChange,
   disabled = false,
+  hasError = false,
   id,
 }: {
   label: string
@@ -20,6 +21,7 @@ export function StandardTagSelector({
   tags: string[]
   onChange: (tags: string[]) => void
   disabled?: boolean
+  hasError?: boolean
   id?: string
 }) {
   const [customDraft, setCustomDraft] = useState('')
@@ -59,7 +61,16 @@ export function StandardTagSelector({
 
   return (
     <div>
-      <p className="mb-1.5 text-sm font-medium text-foreground">{label}</p>
+      <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-foreground">
+        {label}
+        {hasError ? (
+          <AlertTriangle
+            className="size-4 shrink-0 text-red-600"
+            aria-hidden="true"
+            title="Campo requerido para publicar"
+          />
+        ) : null}
+      </p>
       {hint ? <p className="mb-2 text-xs text-muted-foreground">{hint}</p> : null}
 
       {tags.length > 0 && (
