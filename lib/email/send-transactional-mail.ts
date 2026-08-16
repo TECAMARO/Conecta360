@@ -1,6 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { createSmtpTransport, getTransactionalFromAddress, getTransactionalReplyTo } from '@/lib/email/smtp'
+import {
+  createTransactionalSmtpTransport,
+  getTransactionalFromAddress,
+  getTransactionalReplyTo,
+} from '@/lib/email/smtp'
 
 /** CID estable para logo embebido (mejor entregabilidad que URL externa). */
 export const TRANSACTIONAL_LOGO_CID = 'conecta360-logo@conecta360'
@@ -37,7 +41,7 @@ export type SendTransactionalMailOptions = {
  * No usar para OTP admin — ese flujo mantiene su propio sendMail().
  */
 export async function sendTransactionalMail(options: SendTransactionalMailOptions): Promise<void> {
-  const transport = createSmtpTransport()
+  const transport = createTransactionalSmtpTransport()
   const logo = getTransactionalLogoAttachment()
   const replyTo = getTransactionalReplyTo()
 

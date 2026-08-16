@@ -8,8 +8,8 @@ import { displayOrg } from '@/lib/email/meeting-email-shared'
 import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
 import {
   getPublicSiteUrl,
-  isLocalDevWithoutSmtp,
-  isSmtpConfigured,
+  isLocalDevWithoutTransactionalSmtp,
+  isTransactionalSmtpConfigured,
 } from '@/lib/email/smtp'
 import type { MeetingRow, ProfileRow } from '@/lib/supabase/database.types'
 
@@ -40,8 +40,8 @@ export async function sendMeetingCancellationEmails(args: {
   const recipients: string[] = []
   const subject = buildMeetingCancellationSubject()
 
-  if (!isSmtpConfigured()) {
-    if (isLocalDevWithoutSmtp()) {
+  if (!isTransactionalSmtpConfigured()) {
+    if (isLocalDevWithoutTransactionalSmtp()) {
       for (const party of parties) {
         const email = party.profile.email?.trim()
         if (!email) continue

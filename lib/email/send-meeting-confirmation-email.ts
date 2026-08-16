@@ -8,8 +8,8 @@ import { displayOrg } from '@/lib/email/meeting-email-shared'
 import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
 import {
   getPublicSiteUrl,
-  isLocalDevWithoutSmtp,
-  isSmtpConfigured,
+  isLocalDevWithoutTransactionalSmtp,
+  isTransactionalSmtpConfigured,
 } from '@/lib/email/smtp'
 import type { MeetingRow, ProfileRow } from '@/lib/supabase/database.types'
 import { dbMeetingStatusToApp } from '@/lib/supabase/meeting-status'
@@ -67,8 +67,8 @@ export async function sendMeetingConfirmationEmail(args: {
       : []),
   ]
 
-  if (!isSmtpConfigured()) {
-    if (isLocalDevWithoutSmtp()) {
+  if (!isTransactionalSmtpConfigured()) {
+    if (isLocalDevWithoutTransactionalSmtp()) {
       for (const party of parties) {
         const templateData = buildMeetingConfirmationTemplateData({
           day: meeting.day,
