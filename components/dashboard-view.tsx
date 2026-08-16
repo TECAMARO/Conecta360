@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { SectorBadge } from '@/components/sector-badge'
+import { formatSlotTimeDisplay } from '@/lib/slot-time-display'
 import { ParticipantAvatar } from '@/components/participant-avatar'
 import { cn } from '@/lib/utils'
 import { participantById, type Appointment, type Participant } from '@/lib/data'
@@ -150,7 +151,7 @@ export function DashboardView({
                         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="size-3.5 text-primary" aria-hidden="true" />
-                            {appt.time}
+                            {formatSlotTimeDisplay(appt.time)}
                           </span>
                           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
                             <MapPin className="size-3.5" aria-hidden="true" />

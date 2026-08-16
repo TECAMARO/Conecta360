@@ -16,6 +16,7 @@ import {
   MEETING_MODALITY,
   PHYSICAL_TABLE_LIST,
 } from '@/lib/physical-tables'
+import { formatSlotTimeLines } from '@/lib/slot-time-display'
 import { EVENT } from '@/lib/event-config'
 import { platformThemedSurfaceClass } from '@/lib/platform-themed-surface'
 import type { PlatformTheme } from '@/lib/platform-preferences'
@@ -189,6 +190,7 @@ export function MeetingRequestModal({
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
                         {slots.map((slot) => {
                           const selected = slotId === slot.id
+                          const { startLine, endLine } = formatSlotTimeLines(slot.time)
                           const availability = participant
                             ? getSlotAvailability(slotContext, slot.id, participant.id)
                             : { available: false, reason: null as const, message: undefined }
@@ -200,7 +202,7 @@ export function MeetingRequestModal({
                               disabled={disabled}
                               onClick={() => selectSlot(slot.id)}
                               className={cn(
-                                'flex min-h-11 flex-col items-start rounded-lg border px-3 py-2 text-left text-sm transition-all',
+                                'flex min-h-11 min-w-[7.25rem] flex-col items-start rounded-lg border px-3 py-2 text-left text-xs transition-all sm:text-sm',
                                 disabled &&
                                   'cursor-not-allowed border-border bg-muted text-muted-foreground/50 line-through',
                                 !disabled &&
@@ -209,7 +211,12 @@ export function MeetingRequestModal({
                                 selected && 'border-primary bg-primary text-primary-foreground',
                               )}
                             >
-                              <span className="font-medium">{slot.time}</span>
+                              <span className="font-medium leading-snug">
+                                <span className="block whitespace-nowrap">{startLine}</span>
+                                {endLine ? (
+                                  <span className="block whitespace-nowrap">{endLine}</span>
+                                ) : null}
+                              </span>
                               {!availability.available && availability.message && (
                                 <span className="mt-0.5 text-[10px] leading-tight no-underline opacity-90">
                                   {availability.message}

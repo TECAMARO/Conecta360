@@ -8,6 +8,7 @@ import { ExploreView } from '@/components/explore-view'
 import { AgendaView } from '@/components/agenda-view'
 import { ProfileView } from '@/components/profile-view'
 import { MessagesView } from '@/components/messages-view'
+import { SchedulesView } from '@/components/schedules-view'
 import { MeetingRequestModal } from '@/components/meeting-request-modal'
 import { ParticipantProfileModal } from '@/components/participant-profile-modal'
 import { PlatformHeader } from '@/components/platform-header'
@@ -92,6 +93,7 @@ const VIEW_PARAM: Record<string, View> = {
   inicio: 'inicio',
   explorar: 'explorar',
   agenda: 'agenda',
+  horarios: 'horarios',
   perfil: 'perfil',
   mensajes: 'mensajes',
 }
@@ -966,6 +968,7 @@ function PlatformApp() {
               onViewProfile={openProfile}
             />
           )}
+          {view === 'horarios' && <SchedulesView />}
           {view === 'perfil' && <ProfileView />}
           {view === 'mensajes' && (
             <div className="flex min-h-0 flex-1 flex-col">

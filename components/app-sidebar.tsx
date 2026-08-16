@@ -16,6 +16,7 @@ import {
   CalendarDays,
   UserRound,
   MessagesSquare,
+  Clock,
   Settings,
   LogOut,
 } from 'lucide-react'
@@ -28,13 +29,14 @@ function sidebarSubtitle(profile: UserProfile): string {
   return 'Completa tu perfil'
 }
 
-export type View = 'inicio' | 'explorar' | 'agenda' | 'perfil' | 'mensajes'
+export type View = 'inicio' | 'explorar' | 'agenda' | 'horarios' | 'perfil' | 'mensajes'
 
 const nav: { id: View; label: string; icon: typeof Users }[] = [
   { id: 'inicio', label: 'Inicio', icon: LayoutDashboard },
   { id: 'perfil', label: 'Mi Perfil Estratégico', icon: UserRound },
   { id: 'explorar', label: 'Explorar Participantes', icon: Users },
   { id: 'agenda', label: 'Mi Agenda', icon: CalendarDays },
+  { id: 'horarios', label: 'Horarios', icon: Clock },
   { id: 'mensajes', label: 'Mensajes', icon: MessagesSquare },
 ]
 

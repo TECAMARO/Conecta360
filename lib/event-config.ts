@@ -48,7 +48,7 @@ export type Sector = (typeof SECTORS)[number]
 
 type DaySchedule = 'morning-afternoon' | 'afternoon-only' | 'morning-only'
 
-type EventDay = {
+export type EventDay = {
   id: string
   label: string
   shortLabel: string
@@ -183,3 +183,32 @@ export const eventScheduleSummary = [
 ] as const
 
 export const eventDays = EVENT_DAYS
+
+export type EventDayScheduleDisplay = {
+  morning: string
+  afternoon: string
+}
+
+export function getEventDayScheduleDisplay(day: EventDay): EventDayScheduleDisplay {
+  switch (day.schedule) {
+    case 'afternoon-only':
+      return {
+        morning: 'Sin jornada matutina',
+        afternoon: '02:30 p.m. – 04:30 p.m. · 6 bloques',
+      }
+    case 'morning-only':
+      return {
+        morning: '10:00 a.m. – 12:00 p.m. · 6 bloques',
+        afternoon: 'Sin jornada vespertina',
+      }
+    case 'morning-afternoon':
+      return {
+        morning: '10:00 a.m. – 12:00 p.m. · 6 bloques',
+        afternoon: '02:30 p.m. – 04:30 p.m. · 6 bloques',
+      }
+  }
+}
+
+export function getEventDayTimeSlots(dayId: string): EventTimeSlot[] {
+  return eventTimeSlots.filter((slot) => slot.dayId === dayId)
+}

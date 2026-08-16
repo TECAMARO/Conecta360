@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { formatSlotTimeDisplay } from '@/lib/slot-time-display'
 import { cn } from '@/lib/utils'
 import { SectorBadge } from '@/components/sector-badge'
 import { Button } from '@/components/ui/button'
@@ -230,7 +231,7 @@ function AppointmentCard({
         </span>
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <Clock className="size-4 text-primary" aria-hidden="true" />
-          {appointment.time}
+          {formatSlotTimeDisplay(appointment.time)}
         </span>
       </div>
 
