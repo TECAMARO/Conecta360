@@ -387,6 +387,7 @@ export function AgendaView({
   onNotify,
   onSaveEvaluation,
   onViewProfile,
+  userId = null,
 }: {
   appointments: Appointment[]
   conversations: Conversation[]
@@ -395,6 +396,7 @@ export function AgendaView({
   defaultTab?: Tab
   /** Disables accept/reject while awaiting Supabase confirmation. */
   respondingMeetingId?: string | null
+  userId?: string | null
   onOpenConversation: (participantId: string, meetingId?: string) => void
   onAccept: (id: string) => void
   onReject: (id: string) => void
@@ -522,7 +524,11 @@ export function AgendaView({
           })}
         </div>
 
-        <AgendaExportActions appointments={appointments} onNotify={onNotify} />
+        <AgendaExportActions
+          appointments={appointments}
+          userId={userId}
+          onNotify={onNotify}
+        />
       </div>
 
       {!bannerDismissed && (

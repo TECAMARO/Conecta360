@@ -27,7 +27,34 @@ export function parseSlotTimeRange(
   }
 }
 
-/** Una línea: «10:00 a.m. – 10:20 a.m.» (solo presentación). */
+/** Convierte bloque + día ISO a rango Date local (America/Bogota en export ICS). */
+export function parseSlotTimeToDates(
+  dayId: string,
+  slotTime: string,
+): { start: Date; end: Date } | null {
+  const parts = parseSlotTimeRange(slotTime)
+  if (!parts) return null
+
+  const [year, month, day] = dayId.split('-').map(Number)
+  if (!year || !month || !day) return null
+
+  function clockToDate(clockWithPeriod: string): Date | null {
+    const match = clockWithPeriod.match(/^(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.)$/i)
+    if (!match) return null
+    const period = match[3].toLowerCase()
+    let hour = Number(match[1])
+    const minute = Number(match[2])
+    if (period === 'a.m.') hour = hour === 12 ? 0 : hour
+    else hour = hour === 12 ? 12 : hour + 12
+    return new Date(year, month - 1, day, hour, minute, 0)
+  }
+
+  const start = clockToDate(parts.start)
+  const end = clockToDate(parts.end)
+  if (!start || !end) return null
+  return { start, end }
+}
+
 export function formatSlotTimeDisplay(slotTime: string): string {
   const parts = parseSlotTimeRange(slotTime)
   if (!parts) return slotTime

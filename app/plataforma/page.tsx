@@ -966,6 +966,7 @@ function PlatformApp() {
               onNotify={showToast}
               onSaveEvaluation={(id, input) => void handleSaveEvaluation(id, input)}
               onViewProfile={openProfile}
+              userId={userId}
             />
           )}
           {view === 'horarios' && <SchedulesView />}

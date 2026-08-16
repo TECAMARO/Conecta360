@@ -4,6 +4,8 @@ import {
 } from '@/lib/data'
 import { EVENT, eventTimeSlots, MEETING_DURATION_MINUTES } from '@/lib/event-config'
 import { filterConfirmed } from '@/lib/meetings'
+import { resolveEventDayId } from '@/lib/meeting-slots'
+import { formatSlotTimeDisplay, parseSlotTimeToDates } from '@/lib/slot-time-display'
 
 export type AgendaExportRow = {
   id: string
@@ -39,14 +41,13 @@ export function buildAgendaExportRows(appointments: Appointment[]): AgendaExport
   return sortConfirmedMeetingsChronologically(appointments)
     .map((appt) => {
       const participant = participantById(appt.participantId)
-      if (!participant) return null
 
       return {
         id: appt.id,
-        dateTime: `${appt.day}, ${appt.time}`,
-        counterpart: participant.name,
+        dateTime: `${appt.day}, ${formatSlotTimeDisplay(appt.time)}`,
+        counterpart: participant?.name ?? participant?.fullName ?? 'Contraparte confirmada',
         location: `📍 ${appt.table}`,
-        sector: participant.sector?.trim() || '—',
+        sector: participant?.sector?.trim() || '—',
         message: appt.message,
         slotId: appt.slotId,
         day: appt.day,
@@ -54,37 +55,24 @@ export function buildAgendaExportRows(appointments: Appointment[]): AgendaExport
         table: appt.table,
       }
     })
-    .filter((row): row is AgendaExportRow => row !== null)
 }
 
-function to24Hour(hour: number, period: string): number {
-  const normalized = period.toLowerCase().replace(/\./g, '')
-  if (normalized === 'am' || normalized === 'a m') {
-    return hour === 12 ? 0 : hour
-  }
-  return hour === 12 ? 12 : hour + 12
+export function buildAgendaExportRowsByIds(
+  appointments: Appointment[],
+  meetingIds: string[],
+): AgendaExportRow[] {
+  const idSet = new Set(meetingIds)
+  return buildAgendaExportRows(appointments).filter((row) => idSet.has(row.id))
 }
 
 export function parseAppointmentDateRange(
   slotId: string,
   timeRange: string,
+  dayHint?: string,
 ): { start: Date; end: Date } | null {
-  const slot = eventTimeSlots.find((item) => item.id === slotId)
-  if (!slot) return null
-
-  const match = timeRange.match(
-    /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)/i,
-  )
-  if (!match) return null
-
-  const startHour = to24Hour(Number(match[1]), match[5])
-  const endHour = to24Hour(Number(match[3]), match[5])
-  const [year, month, day] = slot.dayId.split('-').map(Number)
-
-  return {
-    start: new Date(year, month - 1, day, startHour, Number(match[2]), 0),
-    end: new Date(year, month - 1, day, endHour, Number(match[4]), 0),
-  }
+  const dayId = resolveEventDayId(slotId, dayHint, timeRange)
+  if (!dayId) return null
+  return parseSlotTimeToDates(dayId, timeRange)
 }
 
 function pad(value: number): string {
@@ -107,7 +95,7 @@ function escapeIcsText(value: string): string {
 }
 
 function buildIcsEvent(row: AgendaExportRow, stamp: string): string | null {
-  const range = parseAppointmentDateRange(row.slotId, row.time)
+  const range = parseAppointmentDateRange(row.slotId, row.time, row.day)
   if (!range) return null
 
   const tableLabel = row.table.replace(/^📍\s*/, '')
@@ -181,7 +169,7 @@ function formatGoogleCalendarDate(date: Date): string {
 }
 
 export function buildGoogleCalendarUrl(row: AgendaExportRow): string | null {
-  const range = parseAppointmentDateRange(row.slotId, row.time)
+  const range = parseAppointmentDateRange(row.slotId, row.time, row.day)
   if (!range) return null
 
   const tableLabel = row.table.replace(/^📍\s*/, '')
@@ -203,7 +191,7 @@ export function buildGoogleCalendarUrl(row: AgendaExportRow): string | null {
 }
 
 export function buildOutlookCalendarUrl(row: AgendaExportRow): string | null {
-  const range = parseAppointmentDateRange(row.slotId, row.time)
+  const range = parseAppointmentDateRange(row.slotId, row.time, row.day)
   if (!range) return null
 
   const tableLabel = row.table.replace(/^📍\s*/, '')
