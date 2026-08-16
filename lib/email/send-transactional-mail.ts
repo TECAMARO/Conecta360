@@ -45,6 +45,13 @@ export async function sendTransactionalMail(options: SendTransactionalMailOption
   const logo = getTransactionalLogoAttachment()
   const replyTo = getTransactionalReplyTo()
 
+  try {
+    await transport.verify()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error de autenticación SMTP'
+    throw new Error(`SMTP transaccional (reuniones): ${message}`)
+  }
+
   await transport.sendMail({
     from: getTransactionalFromAddress(),
     to: options.to,

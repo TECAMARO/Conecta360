@@ -8,68 +8,92 @@ export function isSmtpConfigured(): boolean {
   return Boolean(env('SMTP_HOST') && env('SMTP_USER') && env('SMTP_PASS'))
 }
 
-/** SMTP de reuniones confirmadas/canceladas (SMTP_TRANSACTIONAL_*). */
+/** SMTP de reuniones confirmadas/canceladas — solo SMTP_TRANSACTIONAL_* (sin fallback admin). */
 export function isTransactionalSmtpConfigured(): boolean {
-  if (
+  return Boolean(
     env('SMTP_TRANSACTIONAL_HOST') &&
-    env('SMTP_TRANSACTIONAL_USER') &&
-    env('SMTP_TRANSACTIONAL_PASS')
-  ) {
-    return true
-  }
-  // Compatibilidad pre-migración: mismo SMTP que OTP
-  return isSmtpConfigured()
+      env('SMTP_TRANSACTIONAL_USER') &&
+      env('SMTP_TRANSACTIONAL_PASS'),
+  )
 }
 
 export function getSmtpFromAddress(fallbackEmail: string): string {
   return env('SMTP_FROM') || env('SMTP_USER') || `Conecta360 <${fallbackEmail}>`
 }
 
-export function getTransactionalFromAddress(): string {
-  const transactional = env('SMTP_TRANSACTIONAL_FROM')
-  if (transactional) return transactional
+/** Parsea "Nombre <email@dominio>" o devuelve solo la dirección autenticada. */
+export function getTransactionalFromAddress(): string | { name: string; address: string } {
   const user = env('SMTP_TRANSACTIONAL_USER')
-  if (user) return `Conecta360 · Orinoquía 2026 <${user}>`
+  const raw = env('SMTP_TRANSACTIONAL_FROM')
+
+  if (raw) {
+    const match = raw.match(/^(.+?)\s*<([^>]+)>$/)
+    if (match) {
+      return { name: match[1].trim(), address: match[2].trim() }
+    }
+    if (raw.includes('@')) return raw
+  }
+
+  if (user) {
+    return {
+      name: 'Conecta360 · Orinoquia 2026',
+      address: user,
+    }
+  }
+
   return getSmtpFromAddress('noreply@conecta360.local')
 }
 
 export function getTransactionalReplyTo(): string | undefined {
-  return env('SMTP_REPLY_TO') || env('SMTP_TRANSACTIONAL_USER') || env('SMTP_USER')
+  return env('SMTP_REPLY_TO') || env('SMTP_TRANSACTIONAL_USER') || undefined
 }
 
-function createTransportFromEnv(prefix: '' | 'TRANSACTIONAL_' = '') {
+/** Transporte OTP admin — solo SMTP_*. */
+export function createSmtpTransport() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const nodemailer = require('nodemailer') as typeof import('nodemailer')
 
-  const hostKey = prefix ? 'SMTP_TRANSACTIONAL_HOST' : 'SMTP_HOST'
-  const portKey = prefix ? 'SMTP_TRANSACTIONAL_PORT' : 'SMTP_PORT'
-  const userKey = prefix ? 'SMTP_TRANSACTIONAL_USER' : 'SMTP_USER'
-  const passKey = prefix ? 'SMTP_TRANSACTIONAL_PASS' : 'SMTP_PASS'
+  const host = env('SMTP_HOST')
+  const user = env('SMTP_USER')
+  const pass = env('SMTP_PASS')
+  const port = Number(env('SMTP_PORT') ?? 587)
 
-  const host = env(hostKey) || (prefix ? env('SMTP_HOST') : undefined)
-  const user = env(userKey) || (prefix ? env('SMTP_USER') : undefined)
-  const pass = env(passKey) || (prefix ? env('SMTP_PASS') : undefined)
-  const port = Number(env(portKey) ?? (prefix ? env('SMTP_PORT') : undefined) ?? 587)
+  if (!host || !user || !pass) {
+    throw new Error('SMTP admin (OTP) no configurado.')
+  }
 
   return nodemailer.createTransport({
     host,
     port,
     secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
+    requireTLS: port === 587,
+    auth: { user, pass },
   })
 }
 
-/** Transporte OTP admin — solo SMTP_*. */
-export function createSmtpTransport() {
-  return createTransportFromEnv('')
-}
-
-/** Transporte reuniones — SMTP_TRANSACTIONAL_* (sin mezclar credenciales OTP). */
+/** Transporte reuniones — exclusivamente SMTP_TRANSACTIONAL_*. */
 export function createTransactionalSmtpTransport() {
-  return createTransportFromEnv('TRANSACTIONAL_')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const nodemailer = require('nodemailer') as typeof import('nodemailer')
+
+  const host = env('SMTP_TRANSACTIONAL_HOST')
+  const user = env('SMTP_TRANSACTIONAL_USER')
+  const pass = env('SMTP_TRANSACTIONAL_PASS')
+  const port = Number(env('SMTP_TRANSACTIONAL_PORT') ?? 587)
+
+  if (!host || !user || !pass) {
+    throw new Error(
+      'SMTP transaccional no configurado. Define SMTP_TRANSACTIONAL_HOST, SMTP_TRANSACTIONAL_USER y SMTP_TRANSACTIONAL_PASS.',
+    )
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    requireTLS: port === 587,
+    auth: { user, pass },
+  })
 }
 
 export function isLocalDevWithoutSmtp(): boolean {

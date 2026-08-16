@@ -163,6 +163,14 @@ export type Database = {
         Args: { p_meeting_id: string }
         Returns: MeetingRow | null
       }
+      release_meeting_confirmation_email_claim: {
+        Args: { p_meeting_id: string }
+        Returns: undefined
+      }
+      release_meeting_cancellation_email_claim: {
+        Args: { p_meeting_id: string }
+        Returns: undefined
+      }
       issue_admin_otp_challenge: {
         Args: { p_otp_hash: string; p_expires_at: string }
         Returns: string

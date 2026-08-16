@@ -85,4 +85,58 @@ $$;
 revoke all on function public.claim_meeting_cancellation_email(uuid) from public;
 grant execute on function public.claim_meeting_cancellation_email(uuid) to authenticated;
 
+-- ---------------------------------------------------------------------------
+-- Libera claim si el envío SMTP falló (permite reintento)
+-- ---------------------------------------------------------------------------
+drop function if exists public.release_meeting_confirmation_email_claim(uuid);
+
+create function public.release_meeting_confirmation_email_claim(p_meeting_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'Sesión no válida.';
+  end if;
+
+  update public.meetings m
+  set confirmation_email_sent_at = null
+  where m.id = p_meeting_id
+    and (m.requester_id = v_uid or m.recipient_id = v_uid);
+end;
+$$;
+
+revoke all on function public.release_meeting_confirmation_email_claim(uuid) from public;
+grant execute on function public.release_meeting_confirmation_email_claim(uuid) to authenticated;
+
+drop function if exists public.release_meeting_cancellation_email_claim(uuid);
+
+create function public.release_meeting_cancellation_email_claim(p_meeting_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sesión no válida.';
+  end if;
+
+  if not public.is_admin_user() then
+    raise exception 'Acceso denegado: se requiere rol de administrador.';
+  end if;
+
+  update public.meetings m
+  set cancellation_email_sent_at = null
+  where m.id = p_meeting_id;
+end;
+$$;
+
+revoke all on function public.release_meeting_cancellation_email_claim(uuid) from public;
+grant execute on function public.release_meeting_cancellation_email_claim(uuid) to authenticated;
+
 notify pgrst, 'reload schema';
