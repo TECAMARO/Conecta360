@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
-import { CategoryBadge } from '@/components/category-badge'
+import { SectorBadge } from '@/components/sector-badge'
 import { cn } from '@/lib/utils'
 import { timeSlots, type Participant, type Appointment } from '@/lib/data'
 import { getSlotAvailability, type SlotAvailabilityContext } from '@/lib/agenda-protection'
@@ -17,18 +17,22 @@ import {
   PHYSICAL_TABLE_LIST,
 } from '@/lib/physical-tables'
 import { EVENT } from '@/lib/event-config'
+import { platformThemedSurfaceClass } from '@/lib/platform-themed-surface'
+import type { PlatformTheme } from '@/lib/platform-preferences'
 import { X, Clock, Check, MapPin, Loader2 } from 'lucide-react'
 
 export function MeetingRequestModal({
   participant,
   open,
   userAppointments,
+  theme = 'light',
   onOpenChange,
   onConfirm,
 }: {
   participant: Participant | null
   open: boolean
   userAppointments: Appointment[]
+  theme?: PlatformTheme
   onOpenChange: (open: boolean) => void
   onConfirm: (args: { participant: Participant; slotId: string; message: string }) => void
 }) {
@@ -132,10 +136,13 @@ export function MeetingRequestModal({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-all data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
-          className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2',
-            'max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-card p-6 shadow-xl',
-            'transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
+          className={platformThemedSurfaceClass(
+            theme,
+            cn(
+              'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2',
+              'max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-6 shadow-xl',
+              'transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
+            ),
           )}
         >
           {participant && (
@@ -158,7 +165,7 @@ export function MeetingRequestModal({
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <CategoryBadge category={participant.category} />
+                <SectorBadge sector={participant.sector} />
                 <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-primary">
                   Modalidad: Presencial
                 </span>

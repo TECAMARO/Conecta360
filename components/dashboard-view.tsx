@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { CategoryBadge } from '@/components/category-badge'
+import { SectorBadge } from '@/components/sector-badge'
 import { ParticipantAvatar } from '@/components/participant-avatar'
 import { cn } from '@/lib/utils'
 import { participantById, type Appointment, type Participant } from '@/lib/data'
@@ -206,7 +206,7 @@ export function DashboardView({
                         <p className="truncate text-xs text-muted-foreground">{p.role}</p>
                       )}
                       <div className="mt-1">
-                        <CategoryBadge category={p.category} />
+                        <SectorBadge sector={p.sector} />
                       </div>
                     </div>
                     <Button

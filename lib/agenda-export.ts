@@ -1,5 +1,4 @@
 import {
-  categoryLabel,
   participantById,
   type Appointment,
 } from '@/lib/data'
@@ -47,7 +46,7 @@ export function buildAgendaExportRows(appointments: Appointment[]): AgendaExport
         dateTime: `${appt.day}, ${appt.time}`,
         counterpart: participant.name,
         location: `📍 ${appt.table}`,
-        sector: categoryLabel(participant.category),
+        sector: participant.sector?.trim() || '—',
         message: appt.message,
         slotId: appt.slotId,
         day: appt.day,

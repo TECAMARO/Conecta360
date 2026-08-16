@@ -8,11 +8,14 @@ import { ParticipantAvatar } from '@/components/participant-avatar'
 import { BrochureActionButton } from '@/components/brochure-action-button'
 import { cn } from '@/lib/utils'
 import type { Participant } from '@/lib/data'
+import { platformThemedSurfaceClass } from '@/lib/platform-themed-surface'
+import type { PlatformTheme } from '@/lib/platform-preferences'
 import { X, MapPin, Handshake, Search, ArrowUpRight, LogIn, Briefcase, Building2, User } from 'lucide-react'
 
 export function ParticipantProfileModal({
   participant,
   open,
+  theme = 'light',
   onOpenChange,
   onRequest,
   readOnly = false,
@@ -20,6 +23,7 @@ export function ParticipantProfileModal({
 }: {
   participant: Participant | null
   open: boolean
+  theme?: PlatformTheme
   onOpenChange: (open: boolean) => void
   onRequest?: (participant: Participant) => void
   readOnly?: boolean
@@ -30,15 +34,18 @@ export function ParticipantProfileModal({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-all data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
-          className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2',
-            'max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-card shadow-xl',
-            'transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
+          className={platformThemedSurfaceClass(
+            theme,
+            cn(
+              'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2',
+              'max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl shadow-xl',
+              'transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
+            ),
           )}
         >
           {participant && (
             <>
-              <div className="relative rounded-t-2xl bg-gradient-to-r from-primary to-accent px-6 py-4">
+              <div className="relative rounded-t-2xl bg-gradient-to-r from-[#1a3c34] to-[#234a40] px-6 py-4">
                 <Dialog.Close
                   className="absolute right-3 top-3 z-20 flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-black/15 p-2 text-white transition-colors hover:bg-black/30"
                   aria-label="Cerrar"

@@ -8,7 +8,8 @@ import {
   profileInitials,
   type UserProfile,
 } from '@/lib/profile'
-import { BrandLogoLink } from '@/components/logo'
+import { PlatformLogoToggle } from '@/components/platform-logo-toggle'
+import type { PlatformLogoVariant } from '@/lib/platform-preferences'
 import {
   LayoutDashboard,
   Users,
@@ -44,6 +45,8 @@ export function AppSidebar({
   agendaCount,
   unreadCount,
   userProfile,
+  logoVariant = 'primary',
+  onLogoToggle,
   drawer = false,
 }: {
   active: View
@@ -52,6 +55,8 @@ export function AppSidebar({
   agendaCount: number
   unreadCount: number
   userProfile?: UserProfile
+  logoVariant?: PlatformLogoVariant
+  onLogoToggle?: () => void
   /** Mobile overlay drawer — hides duplicate brand (header already shows logo). */
   drawer?: boolean
 }) {
@@ -87,8 +92,10 @@ export function AppSidebar({
           drawer && 'hidden',
         )}
       >
-        <BrandLogoLink
-          variant="sidebar"
+        <PlatformLogoToggle
+          variant={logoVariant}
+          onToggle={() => onLogoToggle?.()}
+          sidebar
           className="flex h-full w-full items-center justify-center"
         />
       </div>

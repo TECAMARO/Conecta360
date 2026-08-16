@@ -11,7 +11,7 @@ import { MessagesView } from '@/components/messages-view'
 import { MeetingRequestModal } from '@/components/meeting-request-modal'
 import { ParticipantProfileModal } from '@/components/participant-profile-modal'
 import { PlatformHeader } from '@/components/platform-header'
-import { BrandLogoLink } from '@/components/logo'
+import { PlatformLogoToggle } from '@/components/platform-logo-toggle'
 import {
   timeSlots,
   participantById,
@@ -76,6 +76,16 @@ import {
 import { supabase } from '@/src/lib/supabaseClient'
 import { useMeetingsRealtime } from '@/lib/hooks/use-meetings-realtime'
 import { cn } from '@/lib/utils'
+import {
+  loadPlatformPreferences,
+  savePlatformPreferences,
+  type PlatformLogoVariant,
+  type PlatformTheme,
+} from '@/lib/platform-preferences'
+
+const PLATFORM_THEME_FADE_MS = 340
+
+type PlatformThemeFadePhase = 'idle' | 'out' | 'hidden' | 'in'
 import { Menu, X, CircleCheck, TriangleAlert } from 'lucide-react'
 
 const VIEW_PARAM: Record<string, View> = {
@@ -157,6 +167,10 @@ function PlatformApp() {
   /** Blocks double-submit while accept/reject awaits Supabase confirmation. */
   const [respondingMeetingId, setRespondingMeetingId] = useState<string | null>(null)
   const [agendaNavigateKey, setAgendaNavigateKey] = useState(0)
+  const [platformLogo, setPlatformLogo] = useState<PlatformLogoVariant>('primary')
+  const [platformTheme, setPlatformTheme] = useState<PlatformTheme>('light')
+  const [themeFadePhase, setThemeFadePhase] = useState<PlatformThemeFadePhase>('idle')
+  const themeFadeTimeoutsRef = useRef<number[]>([])
   const toastTimeoutRef = useRef<number | null>(null)
   const appointmentsSnapshotRef = useRef<Appointment[]>([])
 
@@ -348,6 +362,64 @@ function PlatformApp() {
     window.addEventListener('conecta360-profile-updated', handler)
     return () => window.removeEventListener('conecta360-profile-updated', handler)
   }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    const prefs = loadPlatformPreferences(userId)
+    setPlatformLogo(prefs.logo)
+    setPlatformTheme(prefs.theme)
+  }, [userId])
+
+  useEffect(() => {
+    return () => {
+      for (const id of themeFadeTimeoutsRef.current) {
+        window.clearTimeout(id)
+      }
+      themeFadeTimeoutsRef.current = []
+    }
+  }, [])
+
+  function scheduleThemeFade(step: () => void, delayMs: number) {
+    const id = window.setTimeout(step, delayMs)
+    themeFadeTimeoutsRef.current.push(id)
+  }
+
+  function handlePlatformThemeChange(theme: PlatformTheme) {
+    if (!userId || theme === platformTheme || themeFadePhase !== 'idle') return
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (prefersReducedMotion) {
+      setPlatformTheme(theme)
+      savePlatformPreferences(userId, { theme })
+      return
+    }
+
+    setThemeFadePhase('out')
+
+    scheduleThemeFade(() => {
+      setPlatformTheme(theme)
+      savePlatformPreferences(userId, { theme })
+      setThemeFadePhase('hidden')
+
+      scheduleThemeFade(() => {
+        setThemeFadePhase('in')
+
+        scheduleThemeFade(() => {
+          setThemeFadePhase('idle')
+        }, PLATFORM_THEME_FADE_MS)
+      }, 16)
+    }, PLATFORM_THEME_FADE_MS)
+  }
+
+  function togglePlatformLogo() {
+    if (!userId) return
+    const next: PlatformLogoVariant = platformLogo === 'primary' ? 'alternate' : 'primary'
+    setPlatformLogo(next)
+    savePlatformPreferences(userId, { logo: next })
+  }
 
   if (!authReady) {
     return (
@@ -765,9 +837,21 @@ function PlatformApp() {
   }
 
   return (
-    <div className="platform-shell flex flex-col overflow-hidden md:flex-row">
+    <div
+      className={cn(
+        'platform-shell flex flex-col overflow-hidden md:flex-row',
+        platformTheme === 'dark' && 'dark',
+        themeFadePhase === 'out' && 'platform-theme-fade-out',
+        themeFadePhase === 'hidden' && 'platform-theme-fade-hidden',
+        themeFadePhase === 'in' && 'platform-theme-fade-in',
+      )}
+    >
       <header className="platform-no-print flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar px-4 md:hidden print:hidden">
-        <BrandLogoLink imageClassName="h-10 w-auto max-w-[min(100%,10rem)] object-contain sm:h-12" />
+        <PlatformLogoToggle
+          variant={platformLogo}
+          onToggle={togglePlatformLogo}
+          imageClassName="h-10 w-auto max-w-[min(100%,10rem)] object-contain sm:h-12"
+        />
         <button
           type="button"
           onClick={() => setMobileNavOpen((o) => !o)}
@@ -787,6 +871,8 @@ function PlatformApp() {
           agendaCount={agendaCount}
           unreadCount={unreadCount}
           userProfile={userProfile}
+          logoVariant={platformLogo}
+          onLogoToggle={togglePlatformLogo}
         />
       </div>
 
@@ -807,21 +893,23 @@ function PlatformApp() {
               agendaCount={agendaCount}
               unreadCount={unreadCount}
               userProfile={userProfile}
+              logoVariant={platformLogo}
+              onLogoToggle={togglePlatformLogo}
             />
           </div>
         </>
       )}
 
-      <main className="platform-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="platform-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
         <div
           className={cn(
-            'platform-main-inner h-full min-h-0 flex-1',
+            'platform-main-inner h-full min-h-0 flex-1 bg-background text-foreground',
             view === 'mensajes' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
           )}
         >
           <div
             className={cn(
-              'mx-auto flex w-full max-w-6xl flex-col',
+              'mx-auto flex w-full max-w-6xl flex-col bg-background',
               view === 'mensajes'
                 ? 'min-h-0 flex-1 px-4 py-4 sm:px-8 sm:py-5'
                 : 'px-4 py-6 sm:px-8 sm:py-10',
@@ -831,6 +919,9 @@ function PlatformApp() {
             <PlatformHeader
               notifications={notifications}
               appointments={appointments}
+              theme={platformTheme}
+              onThemeChange={handlePlatformThemeChange}
+              themeTransitioning={themeFadePhase !== 'idle'}
               onMarkNotificationRead={markNotificationRead}
               onMarkAllNotificationsRead={markAllNotificationsRead}
             />
@@ -895,6 +986,7 @@ function PlatformApp() {
         participant={selected}
         open={modalOpen}
         userAppointments={appointments}
+        theme={platformTheme}
         onOpenChange={setModalOpen}
         onConfirm={(args) => void confirmRequest(args)}
       />
@@ -902,6 +994,7 @@ function PlatformApp() {
       <ParticipantProfileModal
         participant={selected}
         open={profileOpen}
+        theme={platformTheme}
         onOpenChange={setProfileOpen}
         onRequest={openRequest}
         requestDisabled={outgoingSendBlocked}

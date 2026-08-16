@@ -176,28 +176,28 @@ export function NotificationsDropdown({
         <div
           className={cn(
             'absolute right-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),24rem)]',
-            'overflow-hidden rounded-2xl border border-[#dde8d8] bg-card shadow-xl',
+            'overflow-hidden rounded-2xl border border-border bg-card shadow-xl',
           )}
           role="menu"
           aria-label="Notificaciones recientes"
         >
-          <div className="border-b border-[#dde8d8] bg-gradient-to-r from-[#eef3ea] to-white px-4 py-3.5">
+          <div className="border-b border-border bg-secondary/50 px-4 py-3.5">
             <div className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-[#1a3c34] text-[#8ac441]">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-[#8ac441]">
                 <Bell className="size-4" aria-hidden="true" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#1a3c34]">Notificaciones</p>
+                <p className="text-sm font-semibold text-foreground">Notificaciones</p>
                 {unreadCount > 0 ? (
-                  <p className="text-xs text-[#5a6b62]">{unreadCount} sin leer</p>
+                  <p className="text-xs text-muted-foreground">{unreadCount} sin leer</p>
                 ) : (
-                  <p className="text-xs text-[#5a6b62]">Mi Agenda</p>
+                  <p className="text-xs text-muted-foreground">Mi Agenda</p>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="max-h-80 overflow-y-auto bg-[#fafcfa]">
+          <div className="max-h-80 overflow-y-auto bg-muted/30">
             {items.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                 No hay notificaciones recientes.

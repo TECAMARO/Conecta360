@@ -185,6 +185,58 @@ body:has(.platform-shell) {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.34s ease-in-out;
+}
+
+.platform-shell.platform-theme-fade-out {
+  opacity: 0;
+}
+
+.platform-shell.platform-theme-fade-hidden {
+  opacity: 0;
+  transition: none;
+}
+
+.platform-shell.platform-theme-fade-in {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-shell {
+    transition: none !important;
+  }
+}
+
+.platform-shell.dark,
+.platform-themed-surface.dark {
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #eef3f0;
+  --card: #152420;
+  --card-foreground: #eef3f0;
+  --popover: #152420;
+  --popover-foreground: #eef3f0;
+  --primary: #8ac441;
+  --primary-foreground: #0c1412;
+  --secondary: #1e332c;
+  --secondary-foreground: #e8f0e4;
+  --muted: #1a2b26;
+  --muted-foreground: #a8bdb4;
+  --accent: #234a40;
+  --accent-foreground: #eef3f0;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #2a4540;
+  --input: #2a4540;
+  --ring: #8ac441;
+  --sidebar: #0f1f1b;
+  --sidebar-foreground: #e8f0e4;
+  --sidebar-primary: #8ac441;
+  --sidebar-primary-foreground: #0f1f1b;
+  --sidebar-accent: #1a3c34;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2d5a4e;
+  --sidebar-ring: #8ac441;
 }
 
 .platform-safe-bottom {
@@ -194,6 +246,12 @@ body:has(.platform-shell) {
 .platform-main-inner {
   min-height: 0;
   overscroll-behavior: contain;
+}
+
+.platform-main,
+.platform-main-inner {
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 @media print {

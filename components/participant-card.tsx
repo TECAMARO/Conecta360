@@ -24,7 +24,7 @@ export function ParticipantCard({
   requestDisabled?: boolean
 }) {
   return (
-    <article className="flex flex-col rounded-2xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+    <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5 transition-shadow hover:shadow-md">
       <div className="flex items-start gap-3">
         <ParticipantAvatar participant={participant} size="md" />
         <div className="min-w-0 flex-1">
@@ -90,35 +90,43 @@ export function ParticipantCard({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      <div className="mt-4 flex flex-col gap-2">
         {participant.isCurrentUser ? (
-          <span className="inline-flex flex-1 items-center justify-center rounded-lg border border-primary/25 bg-secondary px-3 py-2 text-sm font-medium text-primary">
+          <span className="inline-flex w-full items-center justify-center rounded-lg border border-primary/25 bg-secondary px-3 py-2.5 text-center text-sm font-medium text-primary">
             Tu organización publicada
           </span>
         ) : readOnly ? (
           <>
-            <Button variant="outline" className="min-h-11 w-full flex-1 sm:w-auto" onClick={() => onViewProfile(participant)}>
+            <Button
+              variant="outline"
+              className="min-h-11 h-auto w-full whitespace-normal px-3 py-2.5"
+              onClick={() => onViewProfile(participant)}
+            >
               Ver Perfil
             </Button>
             <Link
               href="/login?redirect=/plataforma"
-              className={cn(buttonVariants(), 'min-h-11 w-full flex-1 sm:w-auto')}
+              className={cn(buttonVariants(), 'min-h-11 h-auto w-full whitespace-normal px-3 py-2.5')}
             >
-              <LogIn className="size-4" />
+              <LogIn className="size-4 shrink-0" />
               Iniciar Sesión
             </Link>
           </>
         ) : (
           <>
             <Button
-              className="min-h-11 w-full flex-1 sm:w-auto"
+              className="min-h-11 h-auto w-full whitespace-normal px-3 py-2.5"
               disabled={requestDisabled}
               onClick={() => onRequest?.(participant)}
             >
               Solicitar Reunión
-              <ArrowUpRight className="size-4" />
+              <ArrowUpRight className="size-4 shrink-0" />
             </Button>
-            <Button variant="outline" className="min-h-11 w-full flex-1 sm:w-auto" onClick={() => onViewProfile(participant)}>
+            <Button
+              variant="outline"
+              className="min-h-11 h-auto w-full whitespace-normal px-3 py-2.5"
+              onClick={() => onViewProfile(participant)}
+            >
               Ver Perfil
             </Button>
           </>
