@@ -16,7 +16,6 @@ export function PlatformHeader({
   themeTransitioning = false,
   onMarkNotificationRead,
   onMarkAllNotificationsRead,
-  showAgendaEmailEnable = false,
   userId = null,
   onNotify,
 }: {
@@ -27,10 +26,8 @@ export function PlatformHeader({
   themeTransitioning?: boolean
   onMarkNotificationRead: (id: string) => void
   onMarkAllNotificationsRead: () => void
-  /** Solo Mi Agenda: botón de habilitar correo transaccional. */
-  showAgendaEmailEnable?: boolean
   userId?: string | null
-  onNotify?: (message: string) => void
+  onNotify?: (message: string, durationMs?: number) => void
 }) {
   return (
     <header
@@ -40,9 +37,7 @@ export function PlatformHeader({
         'print:hidden sm:mb-6',
       )}
     >
-      {showAgendaEmailEnable && (
-        <EmailNotificationsEnableButton userId={userId} onNotify={onNotify} />
-      )}
+      <EmailNotificationsEnableButton userId={userId} onNotify={onNotify} />
       <PlatformThemeToggle
         theme={theme}
         onChange={onThemeChange}

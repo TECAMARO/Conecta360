@@ -436,7 +436,11 @@ function PlatformApp() {
     pendingRequestsCount(appointments) > 0 ? ('solicitudes' as const) : ('reuniones' as const)
   const outgoingSendBlocked = isOutgoingSendBlocked(appointments)
 
-  function showToast(msg: string, variant: 'success' | 'warning' = 'success') {
+  function showToast(
+    msg: string,
+    variant: 'success' | 'warning' = 'success',
+    durationMs = 3500,
+  ) {
     if (toastTimeoutRef.current != null) {
       window.clearTimeout(toastTimeoutRef.current)
     }
@@ -444,7 +448,7 @@ function PlatformApp() {
     toastTimeoutRef.current = window.setTimeout(() => {
       setToast(null)
       toastTimeoutRef.current = null
-    }, 3500)
+    }, durationMs)
   }
 
   function showWarningToast(msg: string) {
@@ -926,9 +930,8 @@ function PlatformApp() {
               themeTransitioning={themeFadePhase !== 'idle'}
               onMarkNotificationRead={markNotificationRead}
               onMarkAllNotificationsRead={markAllNotificationsRead}
-              showAgendaEmailEnable={view === 'agenda'}
               userId={userId}
-              onNotify={showToast}
+              onNotify={(msg, durationMs) => showToast(msg, 'success', durationMs ?? 3500)}
             />
           </div>
           {view === 'inicio' && (

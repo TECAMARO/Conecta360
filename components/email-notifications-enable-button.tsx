@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
-  EMAIL_NOTIFICATIONS_ENABLED_EVENT,
   isEmailNotificationsEnabled,
   markEmailNotificationsEnabled,
+  subscribeEmailNotificationsEnabled,
 } from '@/lib/email-notifications-enable'
 import { cn } from '@/lib/utils'
 import { CircleCheck, Loader2, MailCheck } from 'lucide-react'
@@ -15,21 +15,16 @@ export function EmailNotificationsEnableButton({
   onNotify,
 }: {
   userId: string | null
-  onNotify?: (message: string) => void
+  onNotify?: (message: string, durationMs?: number) => void
 }) {
-  const [enabled, setEnabled] = useState(false)
+  const [enabled, setEnabled] = useState(() => isEmailNotificationsEnabled(userId))
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setEnabled(isEmailNotificationsEnabled(userId))
-  }, [userId])
-
-  useEffect(() => {
-    function refresh() {
+    return subscribeEmailNotificationsEnabled(userId, () => {
       setEnabled(isEmailNotificationsEnabled(userId))
-    }
-    window.addEventListener(EMAIL_NOTIFICATIONS_ENABLED_EVENT, refresh)
-    return () => window.removeEventListener(EMAIL_NOTIFICATIONS_ENABLED_EVENT, refresh)
+    })
   }, [userId])
 
   async function handleEnable() {
@@ -59,7 +54,8 @@ export function EmailNotificationsEnableButton({
       markEmailNotificationsEnabled(userId)
       setEnabled(true)
       onNotify?.(
-        `Correo enviado a ${data.to ?? 'tu bandeja'}. Revisa tu entrada (o Spam en Gmail) y marca «No es spam» si aplica.`,
+        `Correo enviado a ${data.to ?? 'tu bandeja'}. Revisa tu bandeja de entrada; en Gmail, si no lo ves, busca en Spam y marca «No es spam».`,
+        10_000,
       )
     } catch {
       onNotify?.('Error de red al habilitar notificaciones por correo.')

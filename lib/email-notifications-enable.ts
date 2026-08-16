@@ -24,3 +24,25 @@ export function markEmailNotificationsEnabled(userId: string): void {
     /* ignore quota */
   }
 }
+
+export function subscribeEmailNotificationsEnabled(
+  userId: string | null | undefined,
+  listener: () => void,
+): () => void {
+  if (typeof window === 'undefined') return () => {}
+
+  function onCustom() {
+    listener()
+  }
+
+  function onStorage(event: StorageEvent) {
+    if (userId && event.key === storageKey(userId)) listener()
+  }
+
+  window.addEventListener(EMAIL_NOTIFICATIONS_ENABLED_EVENT, onCustom)
+  window.addEventListener('storage', onStorage)
+  return () => {
+    window.removeEventListener(EMAIL_NOTIFICATIONS_ENABLED_EVENT, onCustom)
+    window.removeEventListener('storage', onStorage)
+  }
+}
