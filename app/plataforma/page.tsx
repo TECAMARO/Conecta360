@@ -926,6 +926,9 @@ function PlatformApp() {
               themeTransitioning={themeFadePhase !== 'idle'}
               onMarkNotificationRead={markNotificationRead}
               onMarkAllNotificationsRead={markAllNotificationsRead}
+              showAgendaEmailEnable={view === 'agenda'}
+              userId={userId}
+              onNotify={showToast}
             />
           </div>
           {view === 'inicio' && (
