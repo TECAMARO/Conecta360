@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from '@react-pdf/renderer'
-import type { ExecutiveSnapshot } from '@/lib/admin/analytics'
+import type { ExecutiveSnapshot, SlotGridCell } from '@/lib/admin/analytics'
 import { formatProcessTimestamp } from '@/lib/admin/activity-feed'
 import { MAX_MEETINGS_PER_ORGANIZATION } from '@/lib/admin/constants'
 
@@ -118,6 +118,59 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fbf8',
     marginTop: 8,
   },
+  slotCellDay: { width: '16%' },
+  slotCellTime: { width: '14%' },
+  slotCellTable: { width: '10%' },
+  slotCellStatus: { width: '14%' },
+  slotCellOrgs: { width: '46%' },
+  historyRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f4ee',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    paddingLeft: 16,
+    backgroundColor: '#fafcfa',
+  },
+  historyLabel: {
+    fontSize: 7,
+    color: '#5a6b62',
+    fontStyle: 'italic',
+  },
+  categoryHeading: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#5a6b62',
+    marginBottom: 6,
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  kpiMeta: {
+    fontSize: 7,
+    color: '#5a6b62',
+    marginTop: 2,
+  },
+  metricTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#eef3ea',
+    borderBottomWidth: 1,
+    borderBottomColor: '#dde8d8',
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    marginTop: 4,
+  },
+  metricTableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef3eb',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  metricColLabel: { width: '52%' },
+  metricColValue: { width: '18%', textAlign: 'right' },
+  metricColPct: { width: '18%', textAlign: 'right' },
+  metricColNote: { width: '12%', textAlign: 'right', fontSize: 8, color: '#5a6b62' },
 })
 
 function formatPrintDate(iso: string): string {
@@ -125,6 +178,162 @@ function formatPrintDate(iso: string): string {
     dateStyle: 'full',
     timeStyle: 'short',
   }).format(new Date(iso))
+}
+
+const SLOT_STATUS_LABEL: Record<SlotGridCell['status'], string> = {
+  scheduled: 'Agendada',
+  in_progress: 'En curso',
+  completed: 'Completada',
+  available: 'Disponible',
+  cancelled: 'Cancelada',
+}
+
+function formatInteractionTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('es-CO', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function SlotGridPdfRows({ cells }: { cells: SlotGridCell[] }) {
+  const activeCells = cells.filter((cell) => cell.status !== 'available' || (cell.history?.length ?? 0) > 0)
+
+  if (activeCells.length === 0) {
+    return (
+      <Text style={{ fontSize: 9, color: '#5a6b62' }}>
+        No hay interacciones registradas para los filtros aplicados.
+      </Text>
+    )
+  }
+
+  return (
+    <>
+      <View style={styles.tableHeader}>
+        <Text style={styles.slotCellDay}>Día</Text>
+        <Text style={styles.slotCellTime}>Bloque</Text>
+        <Text style={styles.slotCellTable}>Mesa</Text>
+        <Text style={styles.slotCellStatus}>Estado</Text>
+        <Text style={styles.slotCellOrgs}>Organizaciones</Text>
+      </View>
+      {activeCells.map((cell) => {
+        const cellKey = `${cell.slotId}-${cell.tableNumber}`
+        const tableLabel = `Mesa ${String(cell.tableNumber).padStart(2, '0')}`
+
+        return (
+          <View key={cellKey}>
+            <View style={styles.tableRow}>
+              <Text style={styles.slotCellDay}>{cell.dayLabel}</Text>
+              <Text style={styles.slotCellTime}>{cell.time}</Text>
+              <Text style={styles.slotCellTable}>{tableLabel}</Text>
+              <Text style={styles.slotCellStatus}>{SLOT_STATUS_LABEL[cell.status]}</Text>
+              <Text style={styles.slotCellOrgs}>{cell.organizations ?? '—'}</Text>
+            </View>
+            {(cell.history ?? []).map((item) => (
+              <View key={item.meetingId} style={styles.historyRow}>
+                <Text style={styles.slotCellDay}>
+                  <Text style={styles.historyLabel}>Anterior · </Text>
+                  {formatInteractionTime(item.occurredAt)}
+                </Text>
+                <Text style={styles.slotCellTime}>{cell.time}</Text>
+                <Text style={styles.slotCellTable}>{tableLabel}</Text>
+                <Text style={styles.slotCellStatus}>{SLOT_STATUS_LABEL[item.status]}</Text>
+                <Text style={styles.slotCellOrgs}>
+                  {item.organizations} ({item.statusLabel})
+                </Text>
+              </View>
+            ))}
+          </View>
+        )
+      })}
+    </>
+  )
+}
+
+function KpiMetricBox({
+  label,
+  value,
+  meta,
+}: {
+  label: string
+  value: string
+  meta?: string
+}) {
+  return (
+    <View style={styles.kpiBox}>
+      <Text style={styles.kpiLabel}>{label}</Text>
+      <Text style={styles.kpiValue}>{value}</Text>
+      {meta ? <Text style={styles.kpiMeta}>{meta}</Text> : null}
+    </View>
+  )
+}
+
+function SectorConcentrationTable({
+  rows,
+}: {
+  rows: ExecutiveSnapshot['kpis']['sectorMeetingConcentration']
+}) {
+  if (rows.length === 0) {
+    return (
+      <Text style={{ fontSize: 8, color: '#5a6b62', marginTop: 4 }}>
+        Sin reuniones confirmadas para calcular concentración sectorial.
+      </Text>
+    )
+  }
+
+  return (
+    <View>
+      <View style={styles.metricTableHeader}>
+        <Text style={styles.metricColLabel}>Sector comercial</Text>
+        <Text style={styles.metricColValue}>Reuniones</Text>
+        <Text style={styles.metricColPct}>Concentración</Text>
+        <Text style={styles.metricColNote}>Share</Text>
+      </View>
+      {rows.slice(0, 10).map((row) => (
+        <View key={row.label} style={styles.metricTableRow}>
+          <Text style={styles.metricColLabel}>{row.label}</Text>
+          <Text style={styles.metricColValue}>{row.count}</Text>
+          <Text style={styles.metricColPct}>{row.percentage}%</Text>
+          <Text style={styles.metricColNote}>vol.</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
+function DayOccupancyTable({
+  rows,
+}: {
+  rows: ExecutiveSnapshot['kpis']['tableOccupancyByDay']
+}) {
+  if (rows.length === 0) return null
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 4, color: '#1a3c34' }}>
+        Distribución temporal de ocupación
+      </Text>
+      <View style={styles.metricTableHeader}>
+        <Text style={styles.metricColLabel}>Día del evento</Text>
+        <Text style={styles.metricColValue}>Mesas usadas</Text>
+        <Text style={styles.metricColPct}>Ocupación</Text>
+        <Text style={styles.metricColNote}>N</Text>
+      </View>
+      {rows.map((row) => (
+        <View key={row.dayId} style={styles.metricTableRow}>
+          <Text style={styles.metricColLabel}>{row.label}</Text>
+          <Text style={styles.metricColValue}>
+            {row.occupied}/{row.total}
+          </Text>
+          <Text style={styles.metricColPct}>{row.percentage}%</Text>
+          <Text style={styles.metricColNote}>celdas</Text>
+        </View>
+      ))}
+    </View>
+  )
 }
 
 export function ExecutiveReportDocument({
@@ -136,13 +345,14 @@ export function ExecutiveReportDocument({
   logoUrls: { logo1: string; logo2: string; logo3: string }
   lastProcessImage?: string
 }) {
-  const { kpis, sectorDistribution, offerDistribution, seekDistribution, meetingLedger, latestProcess } =
+  const { kpis, offerDistribution, seekDistribution, meetingLedger, latestProcess, slotGrid } =
     snapshot
 
-  const topOffers = offerDistribution.slice(0, 6)
-  const topSeeks = seekDistribution.slice(0, 6)
-  const topSectors = sectorDistribution.slice(0, 8)
+  const topOffers = offerDistribution.slice(0, 5)
+  const topSeeks = seekDistribution.slice(0, 5)
   const ledgerPreview = meetingLedger.slice(0, 80)
+  const contactQuality =
+    kpis.satisfactionScore != null ? `${kpis.satisfactionScore} / 5` : 'N/D'
 
   return (
     <Document>
@@ -162,53 +372,55 @@ export function ExecutiveReportDocument({
         </Text>
 
         <Text style={styles.sectionTitle}>1. Informe Ejecutivo de Impacto</Text>
+        <Text style={styles.categoryHeading}>Métricas Clave de Negocio (KPIs de Sector)</Text>
+
         <View style={styles.kpiRow}>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Reuniones agendadas / capacidad</Text>
-            <Text style={styles.kpiValue}>
-              {kpis.scheduledTotal} / {kpis.capacityMax}
-            </Text>
-          </View>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Efectividad global (asistencia)</Text>
-            <Text style={styles.kpiValue}>{kpis.attendanceRate}%</Text>
-          </View>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Índice intenciones de vinculación</Text>
-            <Text style={styles.kpiValue}>{kpis.allianceIndex}%</Text>
-          </View>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Eficiencia de agendamiento (bloques)</Text>
-            <Text style={styles.kpiValue}>{kpis.schedulingEfficiency}%</Text>
-          </View>
+          <KpiMetricBox
+            label="Tasa de Eficiencia de Agendamiento (%)"
+            value={`${kpis.executionEfficiencyRate}%`}
+            meta={`${kpis.completedSuccess} ejecutadas · ${kpis.scheduledTotal} programadas`}
+          />
+          <KpiMetricBox
+            label="Reuniones agendadas / capacidad logística"
+            value={`${kpis.scheduledTotal} / ${kpis.capacityMax}`}
+            meta={`Capacidad máxima N = ${kpis.capacityMax}`}
+          />
+          <KpiMetricBox
+            label="Tasa de asistencia efectiva (%)"
+            value={`${kpis.attendanceRate}%`}
+            meta="Reuniones concretadas vs. confirmadas finalizadas"
+          />
+          <KpiMetricBox
+            label="Ocupación de bloques horarios (%)"
+            value={`${kpis.schedulingEfficiency}%`}
+            meta="Bloques con al menos una cita activa"
+          />
         </View>
 
-        <Text style={{ fontSize: 9, marginBottom: 4, fontWeight: 'bold' }}>Sector Económico</Text>
-        {topSectors.map((item) => (
-          <Text key={item.label} style={styles.tagLine}>
-            · {item.label}: {item.count} organizaciones
-          </Text>
-        ))}
+        <Text style={{ fontSize: 9, fontWeight: 'bold', marginTop: 8, marginBottom: 4 }}>
+          Concentración Sectorial (%)
+        </Text>
+        <Text style={{ fontSize: 8, color: '#5a6b62', marginBottom: 4 }}>
+          Distribución del volumen de reuniones confirmadas por sector comercial de las
+          contrapartes.
+        </Text>
+        <SectorConcentrationTable rows={kpis.sectorMeetingConcentration} />
 
-        <Text style={{ fontSize: 9, marginTop: 8, marginBottom: 4, fontWeight: 'bold' }}>
-          Qué Ofrece (top demanda)
+        <Text style={{ fontSize: 9, marginTop: 10, marginBottom: 3, fontWeight: 'bold' }}>
+          Demanda registrada · Qué Ofrece / Qué Busca (top 5)
         </Text>
         {topOffers.map((item) => (
-          <Text key={item.label} style={styles.tagLine}>
-            · {item.label}: {item.count}
+          <Text key={`offer-${item.label}`} style={styles.tagLine}>
+            · Ofrece · {item.label}: {item.count}
           </Text>
         ))}
-
-        <Text style={{ fontSize: 9, marginTop: 8, marginBottom: 4, fontWeight: 'bold' }}>
-          Qué Busca (top demanda)
-        </Text>
         {topSeeks.map((item) => (
-          <Text key={item.label} style={styles.tagLine}>
-            · {item.label}: {item.count}
+          <Text key={`seek-${item.label}`} style={styles.tagLine}>
+            · Busca · {item.label}: {item.count}
           </Text>
         ))}
 
-        <Text style={styles.sectionTitle}>4. Visor rápido · Último proceso operativo</Text>
+        <Text style={styles.sectionTitle}>Anexo operativo · Último proceso registrado</Text>
         {lastProcessImage ? (
           <Image src={lastProcessImage} style={styles.processImage} />
         ) : latestProcess ? (
@@ -238,12 +450,41 @@ export function ExecutiveReportDocument({
 
       <Page size="A4" style={styles.page} orientation="landscape">
         <Text style={styles.sectionTitle}>2. Matriz de Asistencia y Trazabilidad</Text>
-        <Text style={{ fontSize: 8, marginBottom: 8, color: '#5a6b62' }}>
-          Bitácora consolidada ({meetingLedger.length} reuniones registradas
+        <Text style={styles.categoryHeading}>Métricas Operativas y Cobertura</Text>
+
+        <View style={styles.kpiRow}>
+          <KpiMetricBox
+            label={`Total de Reuniones B2B (N = ${kpis.capacityMax})`}
+            value={String(kpis.completedSuccess)}
+            meta={`${kpis.completedSuccess} sesiones completadas · ${kpis.scheduledTotal} confirmadas`}
+          />
+          <KpiMetricBox
+            label="Volumen de Participación (N)"
+            value={`${kpis.participationOrganizations} emp · ${kpis.participationDelegates} del.`}
+            meta={`Registro: ${kpis.registeredOrgs}/${kpis.orgLimit} perfiles activos`}
+          />
+          <KpiMetricBox
+            label="Ocupación de Mesas B2B (%)"
+            value={`${kpis.tableOccupancyRate}%`}
+            meta="Uso de celdas día × bloque × mesa (estado actual)"
+          />
+          <KpiMetricBox
+            label="Reuniones canceladas / pendientes"
+            value={`${kpis.cancelledTotal} / ${kpis.pendingTotal}`}
+            meta="Bitácora operativa del periodo filtrado"
+          />
+        </View>
+
+        <DayOccupancyTable rows={kpis.tableOccupancyByDay} />
+
+        <Text style={{ fontSize: 9, fontWeight: 'bold', marginTop: 10, marginBottom: 6 }}>
+          Bitácora consolidada
+        </Text>
+        <Text style={{ fontSize: 8, marginBottom: 6, color: '#5a6b62' }}>
+          {meetingLedger.length} reuniones registradas
           {meetingLedger.length > ledgerPreview.length
             ? ` · mostrando ${ledgerPreview.length} primeras`
             : ''}
-          )
         </Text>
         <View style={styles.tableHeader}>
           <Text style={styles.cellOrg}>Organización A</Text>
@@ -268,47 +509,62 @@ export function ExecutiveReportDocument({
         </Text>
       </Page>
 
+      <Page size="A4" style={styles.page} orientation="landscape">
+        <Text style={styles.sectionTitle}>2.1 Mapeo de Mesas B2B · Estado actual e historial</Text>
+        <Text style={{ fontSize: 8, marginBottom: 8, color: '#5a6b62' }}>
+          Cada fila muestra la interacción más reciente por día, bloque y mesa. Las filas
+          indentadas listan interacciones anteriores en el mismo espacio, de más reciente a más
+          antigua.
+        </Text>
+        <SlotGridPdfRows cells={slotGrid} />
+        <Text style={styles.footer}>
+          Documento Confidencial y Oficial — Conecta360 Admin Portal
+        </Text>
+      </Page>
+
       <Page size="A4" style={styles.page}>
         <Text style={styles.sectionTitle}>3. Reporte de Satisfacción y Percepción</Text>
+        <Text style={styles.categoryHeading}>
+          Métricas de Percepción y Calidad (NPS / CSAT)
+        </Text>
+
         <View style={styles.kpiRow}>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Nivel promedio de satisfacción (Check-in Mi Agenda)</Text>
-            <Text style={styles.kpiValue}>
-              {kpis.satisfactionScore != null ? `${kpis.satisfactionScore} ⭐` : 'N/D'}
-            </Text>
-            <Text style={{ fontSize: 7, color: '#5a6b62', marginTop: 2 }}>
-              {kpis.checkInSubmitted}/{kpis.checkInEligible} check-ins ({kpis.checkInResponseRate}%
-              respuesta) · {kpis.satisfactionResponses} con expectativa · escala 1–5
-            </Text>
-          </View>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Organizaciones registradas</Text>
-            <Text style={styles.kpiValue}>
-              {kpis.registeredOrgs} / {kpis.orgLimit}
-            </Text>
-          </View>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Promedio citas por empresa</Text>
-            <Text style={styles.kpiValue}>
-              {kpis.avgMeetingsPerOrg} (máx. {MAX_MEETINGS_PER_ORGANIZATION})
-            </Text>
-          </View>
-          <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Completadas con éxito</Text>
-            <Text style={styles.kpiValue}>{kpis.completedSuccess}</Text>
-          </View>
+          <KpiMetricBox
+            label="Índice de Calidad del Contacto (Escala 1–5)"
+            value={contactQuality}
+            meta={`${kpis.satisfactionResponses} evaluaciones válidas · check-in Mi Agenda`}
+          />
+          <KpiMetricBox
+            label="CSAT del Agendamiento (%)"
+            value={`${kpis.schedulingCsat}%`}
+            meta="Empresarios con expectativa alta o media de vinculación"
+          />
+          <KpiMetricBox
+            label="Tasa de respuesta al check-in (%)"
+            value={`${kpis.checkInResponseRate}%`}
+            meta={`${kpis.checkInSubmitted}/${kpis.checkInEligible} reuniones finalizadas`}
+          />
+          <KpiMetricBox
+            label="Índice de intenciones de vinculación (%)"
+            value={`${kpis.allianceIndex}%`}
+            meta="Alineado con CSAT · expectativas comerciales positivas"
+          />
         </View>
 
-        <Text style={{ fontSize: 9, marginTop: 12, lineHeight: 1.5 }}>
-          La satisfacción promedio proviene del módulo &quot;Registrar resultado / Check-in&quot; en
-          Mi Agenda. Solo cuentan evaluaciones con reunión concretada y expectativa de alianza
-          registrada ({kpis.satisfactionResponses} respuestas válidas). Tasa de respuesta al
-          cuestionario: {kpis.checkInSubmitted} de {kpis.checkInEligible} reuniones finalizadas (
-          {kpis.checkInResponseRate}%). El índice de intenciones de vinculación (
-          {kpis.allianceIndex}%) refleja evaluaciones con expectativa alta o media. La tasa de
-          asistencia efectiva ({kpis.attendanceRate}%) se calcula sobre reuniones confirmadas ya
-          finalizadas.
-        </Text>
+        <View style={{ marginTop: 12, gap: 4 }}>
+          <Text style={{ fontSize: 8, color: '#5a6b62' }}>
+            · Índice de Calidad del Contacto: promedio 1–5 derivado de expectativa de alianza
+            post-reunión (alta=5, media=4, baja=2, sin interés=1).
+          </Text>
+          <Text style={{ fontSize: 8, color: '#5a6b62' }}>
+            · CSAT del Agendamiento: % de check-ins con percepción favorable del encuentro
+            comercial asignado.
+          </Text>
+          <Text style={{ fontSize: 8, color: '#5a6b62' }}>
+            · Promedio citas por empresa: {kpis.avgMeetingsPerOrg} (máx.{' '}
+            {MAX_MEETINGS_PER_ORGANIZATION}).
+          </Text>
+        </View>
 
         <Text style={styles.footer}>
           Documento Confidencial y Oficial generado desde Conecta360 Admin Portal —{' '}

@@ -16,6 +16,12 @@ import {
   YAxis,
 } from 'recharts'
 import { AdminShell } from '@/components/admin/admin-shell'
+import {
+  OfficialReportsMenu,
+  downloadFromApi,
+  type OfficialReportKind,
+} from '@/components/admin/official-reports-menu'
+import { SlotGridTable, SLOT_STATUS_CLASS } from '@/components/admin/slot-grid-table'
 import { Button } from '@/components/ui/button'
 import {
   buildExecutiveSnapshot,
@@ -41,21 +47,12 @@ import {
   Activity,
   Building2,
   CalendarRange,
-  Download,
   Loader2,
   Radio,
   Star,
   Target,
   Users,
 } from 'lucide-react'
-
-const SLOT_STATUS_CLASS: Record<string, string> = {
-  available: 'bg-gray-100 text-gray-500 border-gray-200',
-  scheduled: 'bg-amber-100 text-amber-900 border-amber-200',
-  in_progress: 'bg-sky-100 text-sky-900 border-sky-200',
-  completed: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-  cancelled: 'bg-red-50 text-red-700 border-red-200',
-}
 
 function KpiCard({
   label,
@@ -155,7 +152,7 @@ export function ExecutiveDashboard() {
   const [filters, setFilters] = useState<ExecutiveFilters>(DEFAULT_EXECUTIVE_FILTERS)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [pdfLoading, setPdfLoading] = useState(false)
+  const [reportLoading, setReportLoading] = useState<OfficialReportKind | null>(null)
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const latestProcessCaptureRef = useRef<HTMLDivElement>(null)
@@ -214,7 +211,7 @@ export function ExecutiveDashboard() {
   )
 
   async function handleDownloadPdf() {
-    setPdfLoading(true)
+    setReportLoading('pdf')
     try {
       let lastProcessImage: string | undefined
       if (snapshot.latestProcess && latestProcessCaptureRef.current) {
@@ -229,27 +226,41 @@ export function ExecutiveDashboard() {
         }
       }
 
-      const res = await fetch('/api/admin/report-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filters, lastProcessImage }),
+      await downloadFromApi('/api/admin/report-pdf', 'conecta360-informe-ejecutivo', {
+        filters,
+        lastProcessImage,
       })
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string }
-        throw new Error(data.error ?? 'No se pudo generar el PDF.')
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `conecta360-informe-ejecutivo-${Date.now()}.pdf`
-      anchor.click()
-      URL.revokeObjectURL(url)
       setToast('PDF descargado correctamente.')
     } catch (err) {
       setToast(err instanceof Error ? err.message : 'Error al descargar PDF.')
     } finally {
-      setPdfLoading(false)
+      setReportLoading(null)
+      window.setTimeout(() => setToast(null), 4000)
+    }
+  }
+
+  async function handleDownloadWord() {
+    setReportLoading('word')
+    try {
+      await downloadFromApi('/api/admin/report-word', 'conecta360-sectores-participantes')
+      setToast('Word descargado correctamente.')
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Error al descargar Word.')
+    } finally {
+      setReportLoading(null)
+      window.setTimeout(() => setToast(null), 4000)
+    }
+  }
+
+  async function handleDownloadExcel() {
+    setReportLoading('excel')
+    try {
+      await downloadFromApi('/api/admin/report-excel', 'conecta360-directorio-participantes')
+      setToast('Excel descargado correctamente.')
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Error al descargar Excel.')
+    } finally {
+      setReportLoading(null)
       window.setTimeout(() => setToast(null), 4000)
     }
   }
@@ -283,20 +294,12 @@ export function ExecutiveDashboard() {
       refreshing={refreshing}
       onRefresh={() => void loadData()}
       actions={
-        <Button
-          type="button"
-          size="sm"
-          className="gap-1.5 bg-[#8ac441] text-[#1a3c34] hover:bg-[#7ab038]"
-          disabled={pdfLoading}
-          onClick={() => void handleDownloadPdf()}
-        >
-          {pdfLoading ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Download className="size-4" aria-hidden="true" />
-          )}
-          Descargar Entregable PDF Oficial
-        </Button>
+        <OfficialReportsMenu
+          loading={reportLoading}
+          onDownloadPdf={() => void handleDownloadPdf()}
+          onDownloadWord={() => void handleDownloadWord()}
+          onDownloadExcel={() => void handleDownloadExcel()}
+        />
       }
     >
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#dde8d8] bg-white px-4 py-3 shadow-sm">
@@ -461,41 +464,7 @@ export function ExecutiveDashboard() {
             </span>
           ))}
         </div>
-        <div className="max-h-96 overflow-auto rounded-xl border border-[#eef3eb]">
-          <table className="min-w-full text-left text-xs">
-            <thead className="sticky top-0 bg-[#f8fbf8] text-[#1a3c34]/70">
-              <tr>
-                <th className="px-3 py-2">Día</th>
-                <th className="px-3 py-2">Bloque</th>
-                <th className="px-3 py-2">Mesa</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2">Organizaciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#eef3eb]">
-              {snapshot.slotGrid.map((cell) => (
-                <tr key={`${cell.slotId}-${cell.tableNumber}`}>
-                  <td className="px-3 py-2 whitespace-nowrap">{cell.dayLabel}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{cell.time}</td>
-                  <td className="px-3 py-2">Mesa {String(cell.tableNumber).padStart(2, '0')}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={cn(
-                        'inline-flex rounded-full border px-2 py-0.5 capitalize',
-                        SLOT_STATUS_CLASS[cell.status],
-                      )}
-                    >
-                      {cell.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {cell.organizations ?? '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SlotGridTable cells={snapshot.slotGrid} />
       </section>
 
       <section className="rounded-2xl border border-[#dde8d8] bg-white shadow-sm">

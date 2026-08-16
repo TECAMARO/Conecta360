@@ -8,7 +8,7 @@ import {
 } from '@/lib/admin/constants'
 import type { AdminMeetingRow, AdminProfileRow } from '@/lib/supabase/admin-repository'
 import { dbMeetingStatusToApp } from '@/lib/supabase/meeting-status'
-import { eventTimeSlots } from '@/lib/event-config'
+import { eventTimeSlots, eventDays } from '@/lib/event-config'
 import { MAX_PHYSICAL_TABLES } from '@/lib/physical-tables'
 
 export type AdminEvaluationRow = {
@@ -41,15 +41,25 @@ export const DEFAULT_EXECUTIVE_FILTERS: ExecutiveFilters = {
 
 export type TagCount = { label: string; count: number }
 
+export type SlotGridInteraction = {
+  meetingId: string
+  status: 'available' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+  statusLabel: string
+  organizations: string
+  occurredAt: string
+}
+
 export type SlotGridCell = {
   slotId: string
   day: string
   dayLabel: string
   time: string
   tableNumber: number
-  status: 'available' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+  status: SlotGridInteraction['status']
   meetingId?: string
   organizations?: string
+  /** Interacciones anteriores (sin la más reciente), ordenadas de más reciente a más antigua. */
+  history?: SlotGridInteraction[]
 }
 
 export type MeetingLedgerRow = {
@@ -60,6 +70,20 @@ export type MeetingLedgerRow = {
   time: string
   table: string
   status: string
+}
+
+export type SectorConcentrationRow = {
+  label: string
+  count: number
+  percentage: number
+}
+
+export type DayOccupancyRow = {
+  dayId: string
+  label: string
+  occupied: number
+  total: number
+  percentage: number
 }
 
 export type ExecutiveKpis = {
@@ -73,9 +97,24 @@ export type ExecutiveKpis = {
   attendanceRate: number
   avgMeetingsPerOrg: number
   allianceIndex: number
+  /** Ocupación de bloques horarios únicos (uso en dashboard). */
   schedulingEfficiency: number
+  /** Reuniones ejecutadas vs. programadas (confirmadas). */
+  executionEfficiencyRate: number
+  /** Volumen de reuniones por sector comercial (% sobre participaciones sectoriales). */
+  sectorMeetingConcentration: SectorConcentrationRow[]
+  /** Empresas únicas registradas. */
+  participationOrganizations: number
+  /** Delegados / perfiles participantes. */
+  participationDelegates: number
+  /** Ocupación global de celdas día×bloque×mesa. */
+  tableOccupancyRate: number
+  /** Ocupación temporal por día del evento. */
+  tableOccupancyByDay: DayOccupancyRow[]
   /** Promedio 1–5 solo de check-ins con reunión concretada + expectativa de alianza. */
   satisfactionScore: number | null
+  /** CSAT del agendamiento: % expectativas alta o media en check-ins válidos. */
+  schedulingCsat: number
   /** Check-ins registrados vía Mi Agenda (Registrar resultado). */
   checkInSubmitted: number
   /** Reuniones B2B ya finalizadas elegibles para check-in. */
@@ -266,6 +305,7 @@ export function computeExecutiveKpis(
   meetings: AdminMeetingRow[],
   profiles: AdminProfileRow[],
   evaluations: AdminEvaluationRow[],
+  slotGrid: SlotGridCell[] = [],
   now = new Date(),
 ): ExecutiveKpis {
   let scheduledTotal = 0
@@ -323,6 +363,11 @@ export function computeExecutiveKpis(
   const checkInMetrics = computeCheckInSatisfactionMetrics(meetings, evaluations, now)
 
   const schedulingEfficiency = Math.round((occupiedBlocks.size / TOTAL_TIME_BLOCKS) * 100)
+  const executionEfficiencyRate =
+    scheduledTotal > 0 ? Math.round((completedSuccess / scheduledTotal) * 100) : 0
+  const sectorMeetingConcentration = countMeetingVolumeBySector(meetings, profiles)
+  const { tableOccupancyRate, tableOccupancyByDay } = computeTableOccupancyMetrics(slotGrid)
+  const { participationOrganizations, participationDelegates } = countParticipationVolume(profiles)
 
   return {
     scheduledTotal,
@@ -336,7 +381,14 @@ export function computeExecutiveKpis(
     avgMeetingsPerOrg: Math.round(avgMeetingsPerOrg * 10) / 10,
     allianceIndex: checkInMetrics.allianceIndex,
     schedulingEfficiency,
+    executionEfficiencyRate,
+    sectorMeetingConcentration,
+    participationOrganizations,
+    participationDelegates,
+    tableOccupancyRate,
+    tableOccupancyByDay,
     satisfactionScore: checkInMetrics.satisfactionScore,
+    schedulingCsat: checkInMetrics.allianceIndex,
     checkInSubmitted: checkInMetrics.checkInSubmitted,
     checkInEligible: checkInMetrics.checkInEligible,
     checkInResponseRate: checkInMetrics.checkInResponseRate,
@@ -365,6 +417,90 @@ export function countSectors(profiles: AdminProfileRow[]): TagCount[] {
   return [...counts.entries()]
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count)
+}
+
+export function countMeetingVolumeBySector(
+  meetings: AdminMeetingRow[],
+  profiles: AdminProfileRow[],
+): SectorConcentrationRow[] {
+  const profilesById = new Map(profiles.map((p) => [p.id, p]))
+  const counts = new Map<string, number>()
+  let totalParticipations = 0
+
+  for (const meeting of meetings) {
+    const status = normalizeStatus(meeting.status)
+    if (!CONFIRMED.has(status) && status !== 'completada') continue
+
+    for (const profileId of [meeting.requester_id, meeting.recipient_id]) {
+      const profile = profilesById.get(profileId)
+      const sector = profile?.sector?.trim() || 'Sin sector'
+      counts.set(sector, (counts.get(sector) ?? 0) + 1)
+      totalParticipations += 1
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([label, count]) => ({
+      label,
+      count,
+      percentage:
+        totalParticipations > 0 ? Math.round((count / totalParticipations) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+}
+
+export function computeTableOccupancyMetrics(slotGrid: SlotGridCell[]): {
+  tableOccupancyRate: number
+  tableOccupancyByDay: DayOccupancyRow[]
+} {
+  const occupiedCells = slotGrid.filter((cell) => cell.status !== 'available').length
+  const totalCells = slotGrid.length
+  const tableOccupancyRate =
+    totalCells > 0 ? Math.round((occupiedCells / totalCells) * 100) : 0
+
+  const byDay = new Map<string, DayOccupancyRow>()
+  for (const cell of slotGrid) {
+    const current = byDay.get(cell.day) ?? {
+      dayId: cell.day,
+      label: cell.dayLabel,
+      occupied: 0,
+      total: 0,
+      percentage: 0,
+    }
+    current.total += 1
+    if (cell.status !== 'available') current.occupied += 1
+    byDay.set(cell.day, current)
+  }
+
+  const dayOrder = new Map(eventDays.map((day, index) => [day.id, index]))
+  const tableOccupancyByDay = [...byDay.values()]
+    .map((row) => ({
+      ...row,
+      percentage: row.total > 0 ? Math.round((row.occupied / row.total) * 100) : 0,
+    }))
+    .sort(
+      (a, b) =>
+        (dayOrder.get(a.dayId) ?? Number.MAX_SAFE_INTEGER) -
+        (dayOrder.get(b.dayId) ?? Number.MAX_SAFE_INTEGER),
+    )
+
+  return { tableOccupancyRate, tableOccupancyByDay }
+}
+
+function countParticipationVolume(profiles: AdminProfileRow[]): {
+  participationOrganizations: number
+  participationDelegates: number
+} {
+  const participants = profiles.filter((p) => p.role !== 'admin')
+  const orgKeys = new Set<string>()
+  for (const profile of participants) {
+    const org = (profile.organization_name ?? '').trim().toLowerCase()
+    if (org) orgKeys.add(org)
+  }
+  return {
+    participationOrganizations: orgKeys.size,
+    participationDelegates: participants.length,
+  }
 }
 
 function cellStatus(
@@ -396,6 +532,26 @@ function cellStatus(
   return 'available'
 }
 
+function meetingInteractionAt(meeting: AdminMeetingRow): number {
+  const raw = meeting.created_at
+  if (!raw) return 0
+  const ms = new Date(raw).getTime()
+  return Number.isFinite(ms) ? ms : 0
+}
+
+function meetingToInteraction(
+  meeting: AdminMeetingRow,
+  now: Date,
+): SlotGridInteraction {
+  return {
+    meetingId: meeting.id,
+    status: cellStatus(meeting, now),
+    statusLabel: meeting.statusLabel,
+    organizations: `${meeting.requesterOrganization} ↔ ${meeting.recipientOrganization}`,
+    occurredAt: meeting.created_at ?? now.toISOString(),
+  }
+}
+
 export function buildSlotGrid(
   meetings: AdminMeetingRow[],
   filters: ExecutiveFilters,
@@ -406,28 +562,40 @@ export function buildSlotGrid(
     return true
   })
 
-  const meetingByKey = new Map<string, AdminMeetingRow>()
+  const meetingsByKey = new Map<string, AdminMeetingRow[]>()
   for (const meeting of meetings) {
     if (filters.table !== 'all' && meeting.table_number !== Number(filters.table)) continue
-    meetingByKey.set(`${meeting.day}|${meeting.slot_time}|${meeting.table_number}`, meeting)
+    const key = `${meeting.day}|${meeting.slot_time}|${meeting.table_number}`
+    const list = meetingsByKey.get(key) ?? []
+    list.push(meeting)
+    meetingsByKey.set(key, list)
+  }
+
+  for (const [key, list] of meetingsByKey.entries()) {
+    list.sort((a, b) => meetingInteractionAt(b) - meetingInteractionAt(a))
+    meetingsByKey.set(key, list)
   }
 
   const cells: SlotGridCell[] = []
   for (const slot of filteredSlots) {
     for (let table = 1; table <= MAX_PHYSICAL_TABLES; table += 1) {
       if (filters.table !== 'all' && table !== Number(filters.table)) continue
-      const meeting = meetingByKey.get(`${slot.dayId}|${slot.time}|${table}`)
+      const key = `${slot.dayId}|${slot.time}|${table}`
+      const slotMeetings = meetingsByKey.get(key) ?? []
+      const interactions = slotMeetings.map((meeting) => meetingToInteraction(meeting, now))
+      const primary = interactions[0]
+      const history = interactions.length > 1 ? interactions.slice(1) : undefined
+
       cells.push({
         slotId: slot.id,
         day: slot.dayId,
         dayLabel: slot.day,
         time: slot.time,
         tableNumber: table,
-        status: cellStatus(meeting, now),
-        meetingId: meeting?.id,
-        organizations: meeting
-          ? `${meeting.requesterOrganization} ↔ ${meeting.recipientOrganization}`
-          : undefined,
+        status: primary?.status ?? 'available',
+        meetingId: primary?.meetingId,
+        organizations: primary?.organizations,
+        history,
       })
     }
   }
@@ -459,6 +627,7 @@ export function buildExecutiveSnapshot(
   const filteredMeetingIds = new Set(filteredMeetings.map((m) => m.id))
   const filteredEvaluations = filterEvaluationsForMeetings(evaluations, filteredMeetingIds)
   const meetingById = new Map(filteredMeetings.map((m) => [m.id, m]))
+  const slotGrid = buildSlotGrid(filteredMeetings, filters)
   const activityFeed = buildActivityProcessFeed(
     filteredMeetings,
     filteredEvaluations,
@@ -470,11 +639,16 @@ export function buildExecutiveSnapshot(
     profiles: filteredProfiles,
     meetings: filteredMeetings,
     evaluations: filteredEvaluations,
-    kpis: computeExecutiveKpis(filteredMeetings, filteredProfiles, filteredEvaluations),
+    kpis: computeExecutiveKpis(
+      filteredMeetings,
+      filteredProfiles,
+      filteredEvaluations,
+      slotGrid,
+    ),
     sectorDistribution: countSectors(filteredProfiles),
     offerDistribution: countTags(filteredProfiles, 'offers'),
     seekDistribution: countTags(filteredProfiles, 'seeks'),
-    slotGrid: buildSlotGrid(filteredMeetings, filters),
+    slotGrid,
     meetingLedger: buildMeetingLedger(filteredMeetings),
     activityFeed,
     latestProcess: activityFeed[0] ?? null,
