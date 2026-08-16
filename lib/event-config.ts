@@ -140,20 +140,24 @@ function slotsForDay(schedule: DaySchedule): string[] {
   }
 }
 
+function slotPeriod(time: string): 'mañana' | 'tarde' {
+  if ((MORNING_SLOTS as readonly string[]).includes(time)) return 'mañana'
+  return 'tarde'
+}
+
 function buildSlots(): EventTimeSlot[] {
   const slots: EventTimeSlot[] = []
   let counter = 1
 
   for (const day of EVENT_DAYS) {
     for (const time of slotsForDay(day.schedule)) {
-      const period: 'mañana' | 'tarde' = time.includes('a.m.') ? 'mañana' : 'tarde'
       slots.push({
         id: `orinoquia-${counter++}`,
         dayId: day.id,
         day: day.shortLabel,
         dayLabel: day.label,
         time,
-        period,
+        period: slotPeriod(time),
         available: true,
       })
     }
