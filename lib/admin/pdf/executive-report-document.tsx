@@ -171,6 +171,25 @@ const styles = StyleSheet.create({
   metricColValue: { width: '18%', textAlign: 'right' },
   metricColPct: { width: '18%', textAlign: 'right' },
   metricColNote: { width: '12%', textAlign: 'right', fontSize: 8, color: '#5a6b62' },
+  dashboardCapture: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#dde8d8',
+    borderRadius: 6,
+    objectFit: 'contain',
+    width: '100%',
+  },
+  dashboardCaptureLandscape: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#dde8d8',
+    borderRadius: 6,
+    objectFit: 'contain',
+    width: '100%',
+    maxHeight: 520,
+  },
 })
 
 function formatPrintDate(iso: string): string {
@@ -339,17 +358,17 @@ function DayOccupancyTable({
 export function ExecutiveReportDocument({
   snapshot,
   logoUrls,
-  lastProcessImage,
+  processFeedImage,
+  chartsImage,
 }: {
   snapshot: ExecutiveSnapshot
   logoUrls: { logo1: string; logo2: string; logo3: string }
-  lastProcessImage?: string
+  processFeedImage?: string
+  chartsImage?: string
 }) {
   const { kpis, offerDistribution, seekDistribution, meetingLedger, latestProcess, slotGrid } =
     snapshot
 
-  const topOffers = offerDistribution.slice(0, 5)
-  const topSeeks = seekDistribution.slice(0, 5)
   const ledgerPreview = meetingLedger.slice(0, 80)
   const contactQuality =
     kpis.satisfactionScore != null ? `${kpis.satisfactionScore} / 5` : 'N/D'
@@ -405,42 +424,6 @@ export function ExecutiveReportDocument({
           contrapartes.
         </Text>
         <SectorConcentrationTable rows={kpis.sectorMeetingConcentration} />
-
-        <Text style={{ fontSize: 9, marginTop: 10, marginBottom: 3, fontWeight: 'bold' }}>
-          Demanda registrada · Qué Ofrece / Qué Busca (top 5)
-        </Text>
-        {topOffers.map((item) => (
-          <Text key={`offer-${item.label}`} style={styles.tagLine}>
-            · Ofrece · {item.label}: {item.count}
-          </Text>
-        ))}
-        {topSeeks.map((item) => (
-          <Text key={`seek-${item.label}`} style={styles.tagLine}>
-            · Busca · {item.label}: {item.count}
-          </Text>
-        ))}
-
-        <Text style={styles.sectionTitle}>Anexo operativo · Último proceso registrado</Text>
-        {lastProcessImage ? (
-          <Image src={lastProcessImage} style={styles.processImage} />
-        ) : latestProcess ? (
-          <View style={styles.processFallback}>
-            <Text style={{ fontSize: 10, fontWeight: 'bold', marginBottom: 4 }}>
-              {latestProcess.title}
-            </Text>
-            <Text style={{ fontSize: 9, marginBottom: 2 }}>{latestProcess.line1}</Text>
-            <Text style={{ fontSize: 9, marginBottom: 4, color: '#5a6b62' }}>
-              {latestProcess.line2}
-            </Text>
-            <Text style={{ fontSize: 8, color: '#5a6b62' }}>
-              {latestProcess.statusLabel} · {formatProcessTimestamp(latestProcess.timestamp)}
-            </Text>
-          </View>
-        ) : (
-          <Text style={{ fontSize: 9, color: '#5a6b62' }}>
-            No hay procesos registrados para los filtros aplicados.
-          </Text>
-        )}
 
         <Text style={styles.footer}>
           Documento Confidencial y Oficial generado desde Conecta360 Admin Portal —{' '}
@@ -523,7 +506,80 @@ export function ExecutiveReportDocument({
       </Page>
 
       <Page size="A4" style={styles.page}>
-        <Text style={styles.sectionTitle}>3. Reporte de Satisfacción y Percepción</Text>
+        <Text style={styles.sectionTitle}>4. Visor rápido · Cuadro detallado</Text>
+        <Text style={{ fontSize: 8, marginBottom: 8, color: '#5a6b62' }}>
+          Captura del panel operativo en vivo al momento de generar el informe (filtros aplicados
+          en dashboard).
+        </Text>
+        {processFeedImage ? (
+          <Image src={processFeedImage} style={styles.dashboardCapture} />
+        ) : latestProcess ? (
+          <View style={styles.processFallback}>
+            <Text style={{ fontSize: 10, fontWeight: 'bold', marginBottom: 4 }}>
+              {latestProcess.title}
+            </Text>
+            <Text style={{ fontSize: 9, marginBottom: 2 }}>{latestProcess.line1}</Text>
+            <Text style={{ fontSize: 9, marginBottom: 4, color: '#5a6b62' }}>
+              {latestProcess.line2}
+            </Text>
+            <Text style={{ fontSize: 8, color: '#5a6b62' }}>
+              {latestProcess.statusLabel} · {formatProcessTimestamp(latestProcess.timestamp)}
+            </Text>
+          </View>
+        ) : (
+          <Text style={{ fontSize: 9, color: '#5a6b62' }}>
+            No hay procesos registrados para los filtros aplicados.
+          </Text>
+        )}
+        <Text style={styles.footer}>
+          Documento Confidencial y Oficial — Conecta360 Admin Portal
+        </Text>
+      </Page>
+
+      <Page size="A4" style={styles.page} orientation="landscape">
+        <Text style={styles.sectionTitle}>5. Gráficas de demanda registrada</Text>
+        <Text style={{ fontSize: 8, marginBottom: 8, color: '#5a6b62' }}>
+          Sector económico · Qué Ofrece · Qué Busca — según filtros activos en el dashboard al
+          descargar.
+        </Text>
+        {chartsImage ? (
+          <Image src={chartsImage} style={styles.dashboardCaptureLandscape} />
+        ) : (
+          <View style={styles.processFallback}>
+            <Text style={{ fontSize: 9, fontWeight: 'bold', marginBottom: 6, color: '#1a3c34' }}>
+              Resumen textual (captura gráfica no disponible)
+            </Text>
+            <Text style={{ fontSize: 8, marginBottom: 4, fontWeight: 'bold' }}>Sector económico</Text>
+            {snapshot.sectorDistribution.slice(0, 8).map((item) => (
+              <Text key={`sector-${item.label}`} style={styles.tagLine}>
+                · {item.label}: {item.count}
+              </Text>
+            ))}
+            <Text style={{ fontSize: 8, marginTop: 6, marginBottom: 4, fontWeight: 'bold' }}>
+              Qué Ofrece
+            </Text>
+            {offerDistribution.slice(0, 8).map((item) => (
+              <Text key={`offer-${item.label}`} style={styles.tagLine}>
+                · {item.label}: {item.count}
+              </Text>
+            ))}
+            <Text style={{ fontSize: 8, marginTop: 6, marginBottom: 4, fontWeight: 'bold' }}>
+              Qué Busca
+            </Text>
+            {seekDistribution.slice(0, 8).map((item) => (
+              <Text key={`seek-${item.label}`} style={styles.tagLine}>
+                · {item.label}: {item.count}
+              </Text>
+            ))}
+          </View>
+        )}
+        <Text style={styles.footer}>
+          Documento Confidencial y Oficial — Conecta360 Admin Portal
+        </Text>
+      </Page>
+
+      <Page size="A4" style={styles.page}>
+        <Text style={styles.sectionTitle}>6. Reporte de Satisfacción y Percepción</Text>
         <Text style={styles.categoryHeading}>
           Métricas de Percepción y Calidad (NPS / CSAT)
         </Text>

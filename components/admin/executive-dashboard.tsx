@@ -3,18 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
 import {
-  ExecutiveLatestProcessCapture,
+  ExecutiveProcessFeedCapture,
   ExecutiveProcessFeedPanel,
 } from '@/components/admin/executive-process-feed'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { ExecutiveChartsPdfCapture, TagBarChart } from '@/components/admin/executive-charts-capture'
 import { AdminShell } from '@/components/admin/admin-shell'
 import {
   OfficialReportsMenu,
@@ -111,40 +103,6 @@ function FilterSelect({
   )
 }
 
-function TagBarChart({
-  title,
-  data,
-}: {
-  title: string
-  data: { label: string; count: number }[]
-}) {
-  const chartData = data.slice(0, 8).map((item) => ({
-    name: item.label.length > 28 ? `${item.label.slice(0, 28)}…` : item.label,
-    count: item.count,
-  }))
-
-  return (
-    <div className="rounded-2xl border border-[#dde8d8] bg-white p-4 shadow-sm">
-      <h3 className="mb-4 text-sm font-semibold text-[#1a3c34]">{title}</h3>
-      {chartData.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Sin datos para este filtro.</p>
-      ) : (
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#8ac441" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function ExecutiveDashboard() {
   const [profiles, setProfiles] = useState<AdminProfileRow[]>([])
   const [meetings, setMeetings] = useState<AdminMeetingRow[]>([])
@@ -155,7 +113,8 @@ export function ExecutiveDashboard() {
   const [reportLoading, setReportLoading] = useState<OfficialReportKind | null>(null)
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const latestProcessCaptureRef = useRef<HTMLDivElement>(null)
+  const processFeedCaptureRef = useRef<HTMLDivElement>(null)
+  const chartsCaptureRef = useRef<HTMLDivElement>(null)
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true)
@@ -210,25 +169,34 @@ export function ExecutiveDashboard() {
     [profiles, meetings, evaluations, filters],
   )
 
+  async function captureDashboardImage(element: HTMLElement | null): Promise<string | undefined> {
+    if (!element) return undefined
+    try {
+      return await toPng(element, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+      })
+    } catch (captureErr) {
+      console.warn('[executive-dashboard] No se pudo capturar bloque para PDF:', captureErr)
+      return undefined
+    }
+  }
+
   async function handleDownloadPdf() {
     setReportLoading('pdf')
     try {
-      let lastProcessImage: string | undefined
-      if (snapshot.latestProcess && latestProcessCaptureRef.current) {
-        try {
-          lastProcessImage = await toPng(latestProcessCaptureRef.current, {
-            pixelRatio: 2,
-            cacheBust: true,
-            backgroundColor: '#ffffff',
-          })
-        } catch (captureErr) {
-          console.warn('[executive-dashboard] No se pudo capturar último proceso:', captureErr)
-        }
-      }
+      await new Promise((resolve) => window.setTimeout(resolve, 350))
+
+      const [processFeedImage, chartsImage] = await Promise.all([
+        captureDashboardImage(processFeedCaptureRef.current),
+        captureDashboardImage(chartsCaptureRef.current),
+      ])
 
       await downloadFromApi('/api/admin/report-pdf', 'conecta360-informe-ejecutivo', {
         filters,
-        lastProcessImage,
+        processFeedImage,
+        chartsImage,
       })
       setToast('PDF descargado correctamente.')
     } catch (err) {
@@ -423,16 +391,24 @@ export function ExecutiveDashboard() {
         latestEntry={snapshot.latestProcess}
       />
 
-      {snapshot.latestProcess && (
+      {!loading && (
         <div
           className="fixed left-0 top-0 -z-10"
           style={{ transform: 'translateX(-10000px)' }}
           aria-hidden="true"
         >
-          <ExecutiveLatestProcessCapture
-            ref={latestProcessCaptureRef}
-            entry={snapshot.latestProcess}
+          <ExecutiveProcessFeedCapture
+            ref={processFeedCaptureRef}
+            entries={snapshot.activityFeed}
+            latestEntry={snapshot.latestProcess}
           />
+          <div ref={chartsCaptureRef} className="mt-4">
+            <ExecutiveChartsPdfCapture
+              sectorData={snapshot.sectorDistribution}
+              offerData={snapshot.offerDistribution}
+              seekData={snapshot.seekDistribution}
+            />
+          </div>
         </div>
       )}
 

@@ -17,6 +17,24 @@ const KIND_ACCENT: Record<ActivityProcessEntry['kind'], string> = {
   evaluation: 'border-[#8ac441] bg-[#eef3ea]/90',
 }
 
+const KIND_ACCENT_CAPTURE: Record<ActivityProcessEntry['kind'], string> = {
+  meeting_pending: '#fffbeb',
+  meeting_confirmed: '#ecfdf5',
+  meeting_rejected: '#fff7ed',
+  meeting_cancelled: '#fef2f2',
+  meeting_completed: '#f0f9ff',
+  evaluation: '#f3faf0',
+}
+
+const KIND_BORDER_CAPTURE: Record<ActivityProcessEntry['kind'], string> = {
+  meeting_pending: '#fbbf24',
+  meeting_confirmed: '#34d399',
+  meeting_rejected: '#fb923c',
+  meeting_cancelled: '#f87171',
+  meeting_completed: '#38bdf8',
+  evaluation: '#8ac441',
+}
+
 export function ExecutiveLatestProcessCard({
   entry,
   className,
@@ -117,6 +135,114 @@ export const ExecutiveLatestProcessCapture = forwardRef<
             {formatProcessTimestamp(entry.timestamp)}
           </span>
         </div>
+      </div>
+    </div>
+  )
+})
+
+/** Panel completo del visor rápido para captura PNG → PDF. */
+export const ExecutiveProcessFeedCapture = forwardRef<
+  HTMLDivElement,
+  { entries: ActivityProcessEntry[]; latestEntry: ActivityProcessEntry | null }
+>(function ExecutiveProcessFeedCapture({ entries, latestEntry }, ref) {
+  const preview = entries.slice(0, 12)
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        width: 720,
+        fontFamily: 'Inter, Arial, sans-serif',
+        background: '#f8fbf8',
+        border: '1px solid #dde8d8',
+        borderRadius: 16,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid #dde8d8',
+          padding: '16px 20px',
+          background: '#ffffff',
+        }}
+      >
+        <div>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1a3c34' }}>
+            Visor rápido · Cuadro detallado
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#5a6b62' }}>
+            Procesos recientes de la Rueda de Negocios
+          </p>
+        </div>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: '#166534',
+            background: '#dcfce7',
+            borderRadius: 999,
+            padding: '4px 10px',
+          }}
+        >
+          Live
+        </span>
+      </div>
+
+      {latestEntry && (
+        <div style={{ borderBottom: '1px solid #dde8d8', padding: '16px 20px', background: '#fff' }}>
+          <ExecutiveLatestProcessCapture entry={latestEntry} />
+        </div>
+      )}
+
+      <div style={{ padding: '16px 20px' }}>
+        {preview.length === 0 ? (
+          <p style={{ margin: 0, textAlign: 'center', fontSize: 12, color: '#5a6b62' }}>
+            Sin procesos registrados para los filtros actuales.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {preview.map((entry, index) => (
+              <div
+                key={entry.id}
+                style={{
+                  borderLeft: `4px solid ${KIND_BORDER_CAPTURE[entry.kind]}`,
+                  background: KIND_ACCENT_CAPTURE[entry.kind],
+                  borderRadius: 12,
+                  padding: 12,
+                  boxShadow: index === 0 ? '0 0 0 1px rgba(138,196,65,0.35)' : undefined,
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(26,60,52,0.7)',
+                  }}
+                >
+                  {entry.kind === 'evaluation' ? 'Evaluación' : 'Reunión'}
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: 13, fontWeight: 700, color: '#1a3c34' }}>
+                  {entry.title}
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 600, color: '#1a3c34' }}>
+                  {entry.line1}
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#5a6b62' }}>{entry.line2}</p>
+                <p style={{ margin: '6px 0 0', fontSize: 10, color: '#5a6b62' }}>
+                  {formatProcessTimestamp(entry.timestamp)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
