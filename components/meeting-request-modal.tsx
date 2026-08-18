@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
-import { SectorBadge } from '@/components/sector-badge'
+import { SectorBadges } from '@/components/sector-badge'
+import { participantSectors } from '@/lib/profile-sectors'
 import { cn } from '@/lib/utils'
 import { timeSlots, type Participant, type Appointment } from '@/lib/data'
 import { getSlotAvailability, type SlotAvailabilityContext } from '@/lib/agenda-protection'
@@ -166,7 +167,7 @@ export function MeetingRequestModal({
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <SectorBadge sector={participant.sector} />
+                <SectorBadges sectors={participantSectors(participant)} />
                 <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-primary">
                   Modalidad: Presencial
                 </span>

@@ -22,15 +22,21 @@ export type Database = {
           organization_name: string | null
           region: string | null
           sector: string | null
+          sectors: string[] | null
           description: string | null
           offers: string[] | null
           seeks: string[] | null
           is_published: boolean | null
           logo_url: string | null
           brochure_url: string | null
+          website_url: string | null
+          offer_card_tags: string[] | null
+          seeking_card_tags: string[] | null
           created_at: string | null
           updated_at: string | null
           role: string | null
+          verity_status: string | null
+          registration_audit_email_sent_at: string | null
         }
         Insert: {
           id: string
@@ -40,15 +46,21 @@ export type Database = {
           organization_name?: string | null
           region?: string | null
           sector?: string | null
+          sectors?: string[] | null
           description?: string | null
           offers?: string[] | null
           seeks?: string[] | null
           is_published?: boolean | null
           logo_url?: string | null
           brochure_url?: string | null
+          website_url?: string | null
+          offer_card_tags?: string[] | null
+          seeking_card_tags?: string[] | null
           created_at?: string | null
           updated_at?: string | null
           role?: string | null
+          verity_status?: string | null
+          registration_audit_email_sent_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
       }
@@ -170,6 +182,18 @@ export type Database = {
       release_meeting_cancellation_email_claim: {
         Args: { p_meeting_id: string }
         Returns: undefined
+      }
+      claim_profile_registration_audit_email: {
+        Args: Record<string, never>
+        Returns: Json | null
+      }
+      release_profile_registration_audit_email_claim: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
+      admin_set_profile_verity_status: {
+        Args: { p_profile_id: string; p_status: string }
+        Returns: ProfileRow
       }
       issue_admin_otp_challenge: {
         Args: { p_otp_hash: string; p_expires_at: string }

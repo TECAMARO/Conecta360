@@ -11,6 +11,7 @@ import {
   OUTGOING_LIMIT_RECIPIENT_MESSAGE,
   OUTGOING_LIMIT_SILENT_MESSAGE,
 } from '@/lib/meeting-outgoing-limit'
+import { VERITY_BLOCKED_SILENT_MESSAGE } from '@/lib/verity-status'
 
 const SENDER_BLOCKING_STATUSES = new Set<Appointment['status']>(['confirmada', 'pendiente'])
 const RECEIVER_BLOCKING_STATUSES = new Set<Appointment['status']>(['confirmada'])
@@ -133,7 +134,12 @@ export function canSendMeetingRequest(
   ctx: SlotAvailabilityContext,
   targetParticipantId: string,
   slotId: string,
+  options?: { verityBlocked?: boolean },
 ): { ok: true; table: string } | { ok: false; message: string } {
+  if (options?.verityBlocked) {
+    return { ok: false, message: VERITY_BLOCKED_SILENT_MESSAGE }
+  }
+
   if (isOutgoingSendBlocked(ctx.userAppointments)) {
     return { ok: false, message: OUTGOING_LIMIT_SILENT_MESSAGE }
   }
@@ -170,7 +176,12 @@ export function canAcceptMeetingRequest(
   slotOccupancy: Appointment[],
   requestId: string,
   requesterOutgoingConfirmed?: number,
+  options?: { verityBlocked?: boolean },
 ): { ok: true; table: string } | { ok: false; message: string } {
+  if (options?.verityBlocked) {
+    return { ok: false, message: VERITY_BLOCKED_SILENT_MESSAGE }
+  }
+
   const target = userAppointments.find((appt) => appt.id === requestId)
   if (!target || target.status !== 'pendiente') {
     return { ok: false, message: 'Esta solicitud ya no está disponible para aceptar.' }

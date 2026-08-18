@@ -7,14 +7,17 @@ function mergeParticipantFields(existing: Participant, incoming: Participant): P
     ...existing,
     ...incoming,
     avatarUrl: incoming.avatarUrl?.trim() ? incoming.avatarUrl : existing.avatarUrl ?? null,
-    brochure: incoming.brochure ?? existing.brochure ?? null,
+    websiteUrl: incoming.websiteUrl?.trim() ? incoming.websiteUrl : existing.websiteUrl ?? null,
     description: incoming.description?.trim() ? incoming.description : existing.description,
     offer: incoming.offer.length > 0 ? incoming.offer : existing.offer,
     seeking: incoming.seeking.length > 0 ? incoming.seeking : existing.seeking,
+    cardOffer: incoming.cardOffer,
+    cardSeeking: incoming.cardSeeking,
     needs: incoming.needs.length > 0 ? incoming.needs : existing.needs,
     fullName: incoming.fullName?.trim() ? incoming.fullName : existing.fullName,
     role: incoming.role?.trim() ? incoming.role : existing.role,
     sector: incoming.sector?.trim() ? incoming.sector : existing.sector,
+    sectors: incoming.sectors.length > 0 ? incoming.sectors : existing.sectors,
     location: incoming.location?.trim() ? incoming.location : existing.location,
     name:
       incoming.name?.trim() && incoming.name !== 'Organización participante'

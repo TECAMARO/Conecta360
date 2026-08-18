@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { notifyMeetingCancellationEmail } from '@/lib/email/notify-meeting-cancellation'
 import {
   adminCancelMeeting,
+  adminSetProfileVerityStatus,
   canAdminForceCancel,
   fetchAdminMeetings,
   fetchAdminProfilesWithMetrics,
@@ -13,6 +14,8 @@ import {
   type AdminMeetingRow,
   type AdminProfileRow,
 } from '@/lib/supabase/admin-repository'
+import { VerityStatusPicker } from '@/components/admin/verity-status-picker'
+import { normalizeVerityStatus, type VerityStatus } from '@/lib/verity-status'
 import { supabase } from '@/src/lib/supabaseClient'
 import { AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/ui/button'
@@ -91,6 +94,7 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [verityUpdatingId, setVerityUpdatingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' } | null>(
     null,
   )
@@ -154,6 +158,33 @@ export function AdminDashboard() {
     }
   }, [authorized, loadData])
 
+  async function handleVerityChange(profile: AdminProfileRow, status: VerityStatus) {
+    const current = normalizeVerityStatus(profile.verity_status)
+    if (status === current) return
+
+    const label =
+      status === 'red'
+        ? `¿Activar bloqueo Verity (rojo) para ${profile.full_name ?? profile.email}? Se cancelarán sus reuniones activas.`
+        : `¿Cambiar Verity a ${status} para ${profile.full_name ?? profile.email}?`
+
+    if (!window.confirm(label)) return
+
+    setVerityUpdatingId(profile.id)
+    try {
+      await adminSetProfileVerityStatus(profile.id, status)
+      showToast(
+        status === 'red'
+          ? 'Usuario bloqueado · reuniones canceladas administrativamente.'
+          : 'Estado Verity actualizado.',
+      )
+      await loadData(true)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'No se pudo actualizar Verity.', 'error')
+    } finally {
+      setVerityUpdatingId(null)
+    }
+  }
+
   async function handleAdminCancel(meeting: AdminMeetingRow) {
     const confirmed = window.confirm(
       `¿Cancelar administrativamente la reunión entre ${meeting.requesterOrganization} y ${meeting.recipientOrganization}?\n\nSe liberará la mesa/horario asignado.`,
@@ -213,6 +244,7 @@ export function AdminDashboard() {
             <table className="min-w-full text-left text-sm">
               <thead className="bg-[#f8fbf8] text-xs uppercase tracking-wide text-[#1a3c34]/70">
                 <tr>
+                  <th className="px-5 py-3 font-semibold">Verity</th>
                   <th className="px-5 py-3 font-semibold">Representante</th>
                   <th className="px-5 py-3 font-semibold">Empresa</th>
                   <th className="px-5 py-3 font-semibold">Correo</th>
@@ -223,8 +255,23 @@ export function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#eef3eb]">
-                {profiles.map((profile) => (
+                {profiles.map((profile) => {
+                  const isAdminProfile = profile.role === 'admin'
+                  const verityStatus = normalizeVerityStatus(profile.verity_status)
+
+                  return (
                   <tr key={profile.id} className="hover:bg-[#fafcfa]">
+                    <td className="px-5 py-3">
+                      {isAdminProfile ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <VerityStatusPicker
+                          value={verityStatus}
+                          disabled={verityUpdatingId === profile.id}
+                          onChange={(status) => void handleVerityChange(profile, status)}
+                        />
+                      )}
+                    </td>
                     <td className="px-5 py-3 font-medium text-[#1a3c34]">
                       {profile.full_name?.trim() || '—'}
                     </td>
@@ -260,10 +307,11 @@ export function AdminDashboard() {
                       />
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
                 {profiles.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-5 py-10 text-center text-muted-foreground">
                       No hay perfiles registrados.
                     </td>
                   </tr>

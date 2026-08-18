@@ -19,16 +19,30 @@ export const OFFER_TAG_OPTIONS = [
   'Productos, servicios y soluciones B2B',
   'Financiamiento e Inversión de capital',
   'Alianzas estratégicas y articulación',
-  'Suministro de insumos y proveeduría',
-  'Capacidad de compra / Demanda comercial',
-  'Prototipos, proyectos y portafolio de innovación',
-  'Representación comercial y co-inversión',
+  'Suministro de insumos',
+  'Asesoría en proyectos',
+  'Estrategia comercial',
   'Acceso a nuevos mercados y canales de distribución',
-  'Consultoría, inteligencia de mercado y mentoría',
+  'Consultoría en sostenibilidad',
   'Articulación institucional y proyectos APP',
   'Fondos, programas y cooperación internacional',
   'Visibilidad de marca y liderazgo sectorial',
+  'Desarrollo tecnológico',
+  'Experiencia turística',
+  'Gestión ambiental y circular',
+  'Construcción sostenible',
+  'Productores orgánicos y sostenibles',
 ] as const
+
+/** Etiquetas legacy → nuevas (migración de perfiles existentes). */
+export const OFFER_TAG_LEGACY_RENAMES: Record<string, string> = {
+  'Suministro de insumos y proveeduría': 'Suministro de insumos',
+  'Representación comercial y co-inversión': 'Estrategia comercial',
+  'Consultoría, inteligencia de mercado y mentoría': 'Consultoría en sostenibilidad',
+  'Prototipos, proyectos y portafolio de innovación': 'Asesoría en proyectos',
+}
+
+export const OFFER_TAG_LEGACY_REMOVED = ['Capacidad de compra / Demanda comercial'] as const
 
 export type SeekingTagOption = (typeof SEEKING_TAG_OPTIONS)[number]
 export type OfferTagOption = (typeof OFFER_TAG_OPTIONS)[number]

@@ -1,5 +1,7 @@
 import type { Participant } from '@/lib/data'
 import { fetchPublishedProfiles } from '@/lib/supabase/profiles-repository'
+import { resolveProfileCardTags } from '@/lib/profile-card-tags'
+import { normalizeProfileSectors } from '@/lib/profile-sectors'
 import {
   profileInitials,
   sectorToCategory,
@@ -18,6 +20,8 @@ export function profileToParticipant(
   const displayName = organization || fullName
   if (!displayName) return null
 
+  const sectors = normalizeProfileSectors(profile.sectors, profile.sector)
+
   return {
     id: userId ?? '',
     name: displayName,
@@ -25,16 +29,19 @@ export function profileToParticipant(
     role: profile.role.trim(),
     acronym: profileInitials(displayName),
     avatarUrl: profile.photoUrl ?? null,
-    category: sectorToCategory(profile.sector),
+    category: sectorToCategory(sectors[0] ?? ''),
     needs: inferNeedsFromSeeking(profile.seeking),
     location: profile.location.trim(),
     offer: profile.offer,
     seeking: profile.seeking,
+    cardOffer: resolveProfileCardTags(profile.offer, profile.offerCardTags, userId ?? 'preview'),
+    cardSeeking: resolveProfileCardTags(profile.seeking, profile.seekingCardTags, userId ?? 'preview'),
     description: profile.description.trim(),
-    sector: profile.sector.trim(),
+    sector: sectors[0] ?? '',
+    sectors,
     isPublished: true,
     isCurrentUser: true,
-    brochure: profile.brochure ?? null,
+    websiteUrl: profile.websiteUrl ?? null,
   }
 }
 

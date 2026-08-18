@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { StandardTagSelector } from '@/components/standard-tag-selector'
-import { SectorBadge } from '@/components/sector-badge'
+import { SectorBadges } from '@/components/sector-badge'
 import { ParticipantCard } from '@/components/participant-card'
-import { DocumentCenterSection } from '@/components/document-center-section'
 import { SectorSelect, profileInputClass } from '@/components/sector-select'
 import { cn } from '@/lib/utils'
 import { profileToParticipant } from '@/lib/directory'
 import {
   EMPTY_PROFILE,
   getPublishProfileMissingFields,
+  getUserProfile,
   publishProfile,
   publishProfileValidationMessage,
   profileInitials,
@@ -19,16 +19,18 @@ import {
   type PublishProfileField,
   type UserProfile,
 } from '@/lib/profile'
+import { isVerityBlocked } from '@/lib/verity-status'
+import { normalizeOrganizationWebsite } from '@/lib/organization-website'
+import { pruneProfileCardTags } from '@/lib/profile-card-tags'
+import { normalizeProfileSectors, profileHasSector } from '@/lib/profile-sectors'
 import { getAuthSession } from '@/lib/auth'
 import {
   fetchMyProfile,
   getCurrentUserId,
-  saveMyProfileBrochure,
-  updateMyProfileBrochureUrl,
   upsertMyProfile,
 } from '@/lib/supabase/profiles-repository'
-import { deleteBrochure, storagePathFromPublicUrl, uploadBrochure } from '@/lib/supabase/brochures-repository'
 import { EVENT } from '@/lib/event-config'
+import type { PlatformTheme } from '@/lib/platform-preferences'
 import { OFFER_TAG_OPTIONS, SEEKING_TAG_OPTIONS } from '@/lib/profile-tags'
 import {
   Pencil,
@@ -39,6 +41,7 @@ import {
   Camera,
   X,
   MapPin,
+  Layers,
   Globe,
   Eye,
   FileText,
@@ -131,7 +134,7 @@ function ProfileAvatar({
   )
 }
 
-export function ProfileView() {
+export function ProfileView({ theme = 'light' }: { theme?: PlatformTheme }) {
   const [editing, setEditing] = useState(false)
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE)
   const [userId, setUserId] = useState<string | null>(null)
@@ -165,17 +168,41 @@ export function ProfileView() {
     void load()
   }, [])
 
+  useEffect(() => {
+    function syncVerityFromSession() {
+      const sessionProfile = getUserProfile()
+      if (!sessionProfile) return
+      setProfile((prev) =>
+        prev.verityStatus === sessionProfile.verityStatus
+          ? prev
+          : { ...prev, verityStatus: sessionProfile.verityStatus },
+      )
+      if (isVerityBlocked(sessionProfile.verityStatus)) {
+        setEditing(false)
+      }
+    }
+    window.addEventListener('conecta360-verity-updated', syncVerityFromSession)
+    return () => window.removeEventListener('conecta360-verity-updated', syncVerityFromSession)
+  }, [])
+
+  const profileLocked = isVerityBlocked(profile.verityStatus)
+
   const previewParticipant =
-    profile.isPublished && profileToParticipant(profile, userId ?? undefined)
+    profile.isPublished && !profileLocked && profileToParticipant(profile, userId ?? undefined)
 
   async function persist(next: UserProfile) {
+    if (isVerityBlocked(next.verityStatus)) return
+    const payload = {
+      ...next,
+      websiteUrl: normalizeOrganizationWebsite(next.websiteUrl),
+    }
     setSaving(true)
     setError(null)
     try {
-      const id = await upsertMyProfile(next, getAuthSession()?.email)
+      const id = await upsertMyProfile(payload, getAuthSession()?.email)
       setUserId(id)
-      setProfile(next)
-      setUserProfile(next)
+      setProfile(payload)
+      setUserProfile(payload)
       window.dispatchEvent(new Event('conecta360-profile-updated'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el perfil.')
@@ -218,42 +245,6 @@ export function ProfileView() {
     setPublishMissingFields((prev) => prev.filter((item) => item !== field))
   }
 
-  async function handleBrochureUpload(file: File) {
-    const uploaded = await uploadBrochure(file)
-    const next = { ...profile, brochure: uploaded }
-    const savedUserId = await saveMyProfileBrochure(
-      uploaded.brochureUrl,
-      next,
-      getAuthSession()?.email,
-    )
-    setUserId(savedUserId)
-    setProfile(next)
-    setUserProfile(next)
-    window.dispatchEvent(new Event('conecta360-profile-updated'))
-    setPublishHint(`¡Brochure PDF "${uploaded.fileName}" subido y guardado correctamente!`)
-  }
-
-  async function handleBrochureRemove() {
-    const path =
-      profile.brochure?.storagePath ??
-      (profile.brochure?.brochureUrl
-        ? storagePathFromPublicUrl(profile.brochure.brochureUrl)
-        : undefined)
-    if (path) {
-      try {
-        await deleteBrochure(path)
-      } catch {
-        /* storage delete may fail if already removed */
-      }
-    }
-    const next = { ...profile, brochure: null }
-    await updateMyProfileBrochureUrl(null)
-    setProfile(next)
-    setUserProfile(next)
-    window.dispatchEvent(new Event('conecta360-profile-updated'))
-    setPublishHint('Brochure PDF eliminado del perfil.')
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -278,7 +269,7 @@ export function ProfileView() {
           <Button
             variant={editing ? 'default' : 'outline'}
             size="lg"
-            disabled={saving}
+            disabled={saving || profileLocked}
             className="w-full shrink-0 sm:w-auto"
             onClick={() => (editing ? void handleSaveDraft() : setEditing(true))}
           >
@@ -305,7 +296,7 @@ export function ProfileView() {
           <Button
             size="lg"
             className="w-full shrink-0 gap-2 sm:w-auto"
-            disabled={saving}
+            disabled={saving || profileLocked}
             onClick={() => void handlePublish()}
           >
             <Globe className="size-4" aria-hidden="true" />
@@ -407,21 +398,30 @@ export function ProfileView() {
             />
             {editing ? (
               <SectorSelect
-                value={profile.sector}
+                multiple
+                appearance="platform"
+                theme={theme}
+                value={normalizeProfileSectors(profile.sectors, profile.sector)}
                 hasError={publishMissingFields.includes('sector')}
-                onChange={(sector) => {
+                onChange={(sectors) => {
                   clearPublishFieldError('sector')
-                  setProfile((p) => ({ ...p, sector }))
+                  const normalized = normalizeProfileSectors(sectors)
+                  setProfile((p) => ({
+                    ...p,
+                    sectors: normalized,
+                    sector: normalized[0] ?? '',
+                  }))
                 }}
               />
             ) : (
               <div>
                 <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Layers className="size-4 text-primary" aria-hidden="true" />
                   Sector Económico / Categoría
                   <PublishFieldError show={publishMissingFields.includes('sector')} />
                 </p>
-                <SectorBadge sector={profile.sector} />
-                {!profile.sector && (
+                <SectorBadges sectors={normalizeProfileSectors(profile.sectors, profile.sector)} />
+                {!profileHasSector(profile) && (
                   <p className="mt-1 text-sm text-muted-foreground">Sin sector seleccionado</p>
                 )}
               </div>
@@ -460,38 +460,93 @@ export function ProfileView() {
 
           <StandardTagSelector
             label="Qué Ofrece"
-            hint="Selecciona una o varias capacidades estandarizadas. Puedes añadir etiquetas personalizadas."
+            hint={
+              <>
+                Selecciona una o varias capacidades estandarizadas. Puedes añadir etiquetas
+                personalizadas{' '}
+                <span className="font-semibold">y opcional seleccionar cinco prioritarias.</span>
+              </>
+            }
             options={OFFER_TAG_OPTIONS}
             tags={profile.offer}
+            cardTags={profile.offerCardTags}
             hasError={publishMissingFields.includes('offer')}
             onChange={(offer) => {
               clearPublishFieldError('offer')
-              setProfile((p) => ({ ...p, offer }))
+              setProfile((p) => ({
+                ...p,
+                offer,
+                offerCardTags:
+                  p.offerCardTags == null
+                    ? null
+                    : pruneProfileCardTags(offer, p.offerCardTags),
+              }))
             }}
-            disabled={!editing}
+            onCardTagsChange={(offerCardTags) =>
+              setProfile((p) => ({ ...p, offerCardTags }))
+            }
+            disabled={!editing || profileLocked}
           />
 
           <StandardTagSelector
             label="Qué Busca"
-            hint="Selecciona tus objetivos de networking. Puedes añadir etiquetas personalizadas."
+            hint={
+              <>
+                Selecciona tus objetivos de networking. Puedes añadir etiquetas personalizadas{' '}
+                <span className="font-semibold">y opcional seleccionar cinco prioritarias.</span>
+              </>
+            }
             options={SEEKING_TAG_OPTIONS}
             tags={profile.seeking}
+            cardTags={profile.seekingCardTags}
             hasError={publishMissingFields.includes('seeking')}
             onChange={(seeking) => {
               clearPublishFieldError('seeking')
-              setProfile((p) => ({ ...p, seeking }))
+              setProfile((p) => ({
+                ...p,
+                seeking,
+                seekingCardTags:
+                  p.seekingCardTags == null
+                    ? null
+                    : pruneProfileCardTags(seeking, p.seekingCardTags),
+              }))
             }}
-            disabled={!editing}
+            onCardTagsChange={(seekingCardTags) =>
+              setProfile((p) => ({ ...p, seekingCardTags }))
+            }
+            disabled={!editing || profileLocked}
           />
         </div>
       </div>
 
-      <div className="mt-6">
-        <DocumentCenterSection
-          brochure={profile.brochure}
-          onUpload={handleBrochureUpload}
-          onRemove={() => void handleBrochureRemove()}
-        />
+      <div className="mt-6 rounded-2xl border border-border bg-card p-5">
+        <div className="mb-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Globe className="size-4 text-primary" aria-hidden="true" />
+            Página Web de la Organización
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Opcional. Visible solo cuando otra organización abre tu perfil completo en Explorar
+            Participantes.
+          </p>
+        </div>
+        {editing ? (
+          <input
+            type="url"
+            inputMode="url"
+            value={profile.websiteUrl ?? ''}
+            disabled={profileLocked}
+            placeholder="https://www.tuorganizacion.com"
+            onChange={(e) => setProfile((p) => ({ ...p, websiteUrl: e.target.value }))}
+            className={cn(profileInputClass, 'border-input bg-background focus-visible:ring-ring/30')}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {profile.websiteUrl?.trim()
+              ? profile.websiteUrl
+              : 'Sin página web registrada.'}
+          </p>
+        )}
       </div>
 
       {previewParticipant && (

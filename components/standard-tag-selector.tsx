@@ -1,25 +1,33 @@
 'use client'
 
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { profileInputClass } from '@/components/sector-select'
-import { Plus, X, AlertTriangle } from 'lucide-react'
+import {
+  MAX_PROFILE_CARD_TAGS,
+  toggleProfileCardTag,
+} from '@/lib/profile-card-tags'
+import { Plus, X, AlertTriangle, Check, Square } from 'lucide-react'
 
 export function StandardTagSelector({
   label,
   hint,
   options,
   tags,
+  cardTags = null,
   onChange,
+  onCardTagsChange,
   disabled = false,
   hasError = false,
   id,
 }: {
   label: string
-  hint?: string
+  hint?: ReactNode
   options: readonly string[]
   tags: string[]
+  cardTags?: string[] | null
   onChange: (tags: string[]) => void
+  onCardTagsChange?: (cardTags: string[]) => void
   disabled?: boolean
   hasError?: boolean
   id?: string
@@ -27,6 +35,9 @@ export function StandardTagSelector({
   const [customDraft, setCustomDraft] = useState('')
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, '-')
   const customTags = tags.filter((tag) => !options.includes(tag))
+  const cardSelectionActive = !disabled && Boolean(onCardTagsChange)
+  const selectedCardTags = cardTags ?? []
+  const cardLimitReached = selectedCardTags.length >= MAX_PROFILE_CARD_TAGS
 
   function toggleOption(option: string) {
     if (disabled) return
@@ -52,6 +63,11 @@ export function StandardTagSelector({
     onChange(tags.filter((item) => item !== tag))
   }
 
+  function toggleCardSelection(tag: string) {
+    if (!onCardTagsChange || disabled) return
+    onCardTagsChange(toggleProfileCardTag(cardTags, tag))
+  }
+
   function onCustomKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
@@ -72,27 +88,72 @@ export function StandardTagSelector({
         ) : null}
       </p>
       {hint ? <p className="mb-2 text-xs text-muted-foreground">{hint}</p> : null}
+      {cardSelectionActive ? (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Marca hasta {MAX_PROFILE_CARD_TAGS} etiquetas para mostrarlas en tu tarjeta de Explorar
+          Participantes. Si no marcas ninguna, se mostrarán hasta {MAX_PROFILE_CARD_TAGS}{' '}
+          automáticamente.
+        </p>
+      ) : null}
 
       {tags.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-primary"
-            >
-              {tag}
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => removeTag(tag)}
-                  className="rounded p-0.5 hover:bg-primary/10"
-                  aria-label={`Eliminar ${tag}`}
+        <div className={cn('mb-3', cardSelectionActive ? 'space-y-2' : 'flex flex-wrap gap-2')}>
+          {tags.map((tag) => {
+            const onCard = selectedCardTags.includes(tag)
+            const cardToggleDisabled = cardSelectionActive && cardLimitReached && !onCard
+
+            if (cardSelectionActive) {
+              return (
+                <div
+                  key={tag}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2.5"
                 >
-                  <X className="size-3" aria-hidden="true" />
-                </button>
-              )}
-            </span>
-          ))}
+                  <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{tag}</span>
+                  <button
+                    type="button"
+                    disabled={cardToggleDisabled}
+                    aria-pressed={onCard}
+                    aria-label={
+                      onCard
+                        ? `Quitar ${tag} de la tarjeta del directorio`
+                        : `Mostrar ${tag} en la tarjeta del directorio`
+                    }
+                    onClick={() => toggleCardSelection(tag)}
+                    className={cn(
+                      'flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors',
+                      onCard
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card text-muted-foreground hover:border-primary/40',
+                      cardToggleDisabled && 'cursor-not-allowed opacity-40',
+                    )}
+                  >
+                    {onCard ? (
+                      <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
+                    ) : (
+                      <Square className="size-3.5" aria-hidden="true" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
+                    aria-label={`Eliminar ${tag}`}
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              )
+            }
+
+            return (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-primary"
+              >
+                {tag}
+              </span>
+            )
+          })}
         </div>
       )}
 

@@ -56,8 +56,9 @@ export function buildSentRequest(
 export function buildSentRequestWithReason(
   ctx: SlotAvailabilityContext,
   args: Omit<Appointment, 'id' | 'status' | 'direction' | 'createdAt' | 'modality' | 'table'>,
+  options?: { verityBlocked?: boolean },
 ): { appointment: Appointment | null; error?: string } {
-  const validation = canSendMeetingRequest(ctx, args.participantId, args.slotId)
+  const validation = canSendMeetingRequest(ctx, args.participantId, args.slotId, options)
   if (!validation.ok) {
     return { appointment: null, error: validation.message }
   }
@@ -80,6 +81,7 @@ export function acceptMeetingRequest(
   slotOccupancy: Appointment[],
   requestId: string,
   requesterOutgoingConfirmed?: number,
+  options?: { verityBlocked?: boolean },
 ): {
   appointments: Appointment[]
   notifications: AgendaNotification[]
@@ -90,6 +92,7 @@ export function acceptMeetingRequest(
     slotOccupancy,
     requestId,
     requesterOutgoingConfirmed,
+    options,
   )
   if (!validation.ok) {
     return { appointments: userAppointments, notifications: [], error: validation.message }

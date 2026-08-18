@@ -3,6 +3,7 @@ import type { AdminEvaluationRow } from '@/lib/admin/analytics'
 import type { MeetingRow, ProfileRow } from '@/lib/supabase/database.types'
 import { dbMeetingStatusToApp } from '@/lib/supabase/meeting-status'
 import { formatPhysicalTable } from '@/lib/physical-tables'
+import type { VerityStatus } from '@/lib/verity-status'
 
 export type AdminUserMetrics = {
   confirmed: number
@@ -194,4 +195,19 @@ export function canAdminForceCancel(status: string): boolean {
     PENDING_STATUSES.has(normalized) ||
     CONFIRMED_STATUSES.has(normalized)
   )
+}
+
+export async function adminSetProfileVerityStatus(
+  profileId: string,
+  status: VerityStatus,
+): Promise<ProfileRow> {
+  const { data, error } = await supabase.rpc('admin_set_profile_verity_status', {
+    p_profile_id: profileId,
+    p_status: status,
+  })
+
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('No se pudo actualizar el estado Verity.')
+
+  return data as ProfileRow
 }

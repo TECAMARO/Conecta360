@@ -27,3 +27,22 @@ export function SectorBadge({
     </span>
   )
 }
+
+export function SectorBadges({
+  sectors,
+  className,
+}: {
+  sectors: string[]
+  className?: string
+}) {
+  const visible = sectors.filter((sector) => sector.trim())
+  if (visible.length === 0) return null
+
+  return (
+    <div className={cn('flex flex-wrap gap-1.5', className)}>
+      {visible.map((sector) => (
+        <SectorBadge key={sector} sector={sector} />
+      ))}
+    </div>
+  )
+}

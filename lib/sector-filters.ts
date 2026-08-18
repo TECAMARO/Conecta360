@@ -1,5 +1,6 @@
 import type { Participant } from '@/lib/data'
 import { SECTORS, type Sector } from '@/lib/event-config'
+import { participantSectors } from '@/lib/profile-sectors'
 
 export const ALL_SECTORS_FILTER = 'todas' as const
 export type SectorFilterValue = typeof ALL_SECTORS_FILTER | Sector
@@ -8,8 +9,8 @@ export type SectorFilterValue = typeof ALL_SECTORS_FILTER | Sector
 export const FEATURED_SECTORS: Sector[] = [
   'Biodiversidad y conservación',
   'Energías renovables',
-  'ONG / Fundaciones',
-  'Empresa privada',
+  'Sostenibilidad',
+  'Proyectos Sostenibles',
   'Agroindustria',
   'Tecnología e innovación',
 ]
@@ -23,10 +24,10 @@ export function participantMatchesSectorFilter(
   if (filter === ALL_SECTORS_FILTER) return true
 
   const sector = filter.toLowerCase()
-  if (participant.sector?.toLowerCase() === sector) return true
+  if (participantSectors(participant).some((item) => item.toLowerCase() === sector)) return true
 
   const corpus = [
-    participant.sector ?? '',
+    ...participantSectors(participant),
     participant.description,
     ...participant.offer,
     ...participant.seeking,
@@ -57,7 +58,7 @@ export function filterParticipantsByQuery(
     return (
       p.name.toLowerCase().includes(q) ||
       p.description.toLowerCase().includes(q) ||
-      (p.sector?.toLowerCase().includes(q) ?? false) ||
+      (participantSectors(p).some((sector) => sector.toLowerCase().includes(q)) ?? false) ||
       p.offer.some((o) => o.toLowerCase().includes(q)) ||
       p.seeking.some((s) => s.toLowerCase().includes(q))
     )

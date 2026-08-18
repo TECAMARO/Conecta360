@@ -2,7 +2,9 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { isMasterAdminEmail } from '@/lib/admin-auth/constants'
 import { setAuthSession, type AuthSession } from '@/lib/auth'
 import { EMPTY_PROFILE, setUserProfile } from '@/lib/profile'
+import { normalizeProfileSectors } from '@/lib/profile-sectors'
 import { upsertMyProfile } from '@/lib/supabase/profiles-repository'
+import { notifyRegistrationAuditEmail } from '@/lib/email/notify-registration-audit-email'
 
 export async function signInWithEmail(email: string, password: string): Promise<AuthSession> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -43,8 +45,9 @@ export async function signUpWithEmail(args: {
   fullName: string
   role: string
   organization: string
-  sector: string
+  sectors: string[]
 }): Promise<AuthSession> {
+  const normalizedSectors = normalizeProfileSectors(args.sectors)
   const { data, error } = await supabase.auth.signUp({
     email: args.email,
     password: args.password,
@@ -53,7 +56,8 @@ export async function signUpWithEmail(args: {
         full_name: args.fullName,
         organization: args.organization,
         role: args.role,
-        sector: args.sector,
+        sector: normalizedSectors[0] ?? '',
+        sectors: normalizedSectors,
       },
     },
   })
@@ -68,7 +72,8 @@ export async function signUpWithEmail(args: {
     fullName: args.fullName,
     role: args.role,
     organization: args.organization,
-    sector: args.sector,
+    sector: normalizedSectors[0] ?? '',
+    sectors: normalizedSectors,
   }
 
   await upsertMyProfile(profile, args.email, { skipRemoteMerge: true })
@@ -80,6 +85,7 @@ export async function signUpWithEmail(args: {
     organization: args.organization,
   }
   setAuthSession(session)
+  notifyRegistrationAuditEmail()
   return session
 }
 

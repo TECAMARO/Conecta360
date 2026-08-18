@@ -208,6 +208,25 @@ body:has(.platform-shell) {
   }
 }
 
+.verity-blocked-overlay {
+  opacity: 0;
+  transition: opacity 0.34s ease-in-out;
+}
+
+.verity-blocked-overlay-visible {
+  opacity: 1;
+}
+
+.verity-blocked-overlay-hidden {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verity-blocked-overlay {
+    transition: none !important;
+  }
+}
+
 .platform-shell.dark,
 .platform-themed-surface.dark {
   color-scheme: dark;

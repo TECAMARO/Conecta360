@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { buttonVariants } from '@/components/ui/button'
-import { SectorBadge } from '@/components/sector-badge'
+import { SectorBadges } from '@/components/sector-badge'
+import { participantSectors } from '@/lib/profile-sectors'
 import { ParticipantAvatar } from '@/components/participant-avatar'
 import { cn } from '@/lib/utils'
 import type { Participant } from '@/lib/data'
@@ -47,22 +48,24 @@ export function ParticipantCard({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <SectorBadge sector={participant.sector} />
+      <div className="mt-3">
+        <SectorBadges sectors={participantSectors(participant)} />
       </div>
 
       <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
         {participant.description}
       </p>
 
+      {(participant.cardOffer.length > 0 || participant.cardSeeking.length > 0) && (
       <div className="mt-4 grid gap-3 rounded-xl bg-muted/60 p-3">
+        {participant.cardOffer.length > 0 && (
         <div>
           <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
             <Handshake className="size-3.5" aria-hidden="true" />
             Qué ofrece
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {participant.offer.map((item) => (
+            {participant.cardOffer.map((item) => (
               <span
                 key={item}
                 className="rounded-md bg-card px-2 py-0.5 text-xs text-foreground ring-1 ring-border"
@@ -72,13 +75,15 @@ export function ParticipantCard({
             ))}
           </div>
         </div>
+        )}
+        {participant.cardSeeking.length > 0 && (
         <div>
           <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Search className="size-3.5" aria-hidden="true" />
             Qué busca
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {participant.seeking.map((item) => (
+            {participant.cardSeeking.map((item) => (
               <span
                 key={item}
                 className="rounded-md bg-card px-2 py-0.5 text-xs text-foreground ring-1 ring-border"
@@ -88,7 +93,9 @@ export function ParticipantCard({
             ))}
           </div>
         </div>
+        )}
       </div>
+      )}
 
       <div className="mt-4 flex flex-col gap-2">
         {participant.isCurrentUser ? (

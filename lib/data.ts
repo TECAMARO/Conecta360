@@ -1,4 +1,3 @@
-import type { CorporateBrochure } from '@/lib/corporate-brochure'
 import { eventTimeSlots } from '@/lib/event-config'
 import type { MeetingEvaluation } from '@/lib/meeting-evaluation'
 
@@ -62,11 +61,15 @@ export type Participant = {
   location: string
   offer: string[]
   seeking: string[]
+  /** Subconjunto para tarjeta en Explorar Participantes (máx. 5). */
+  cardOffer: string[]
+  cardSeeking: string[]
   description: string
   sector: string
+  sectors: string[]
   isPublished?: boolean
   isCurrentUser?: boolean
-  brochure?: CorporateBrochure | null
+  websiteUrl?: string | null
 }
 
 export { participantById, getParticipantRegistry, setParticipantRegistry } from '@/lib/participant-registry'

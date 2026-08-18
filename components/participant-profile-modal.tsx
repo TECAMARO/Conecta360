@@ -3,14 +3,19 @@
 import Link from 'next/link'
 import { Dialog } from '@base-ui/react/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { SectorBadge } from '@/components/sector-badge'
+import { SectorBadge, SectorBadges } from '@/components/sector-badge'
+import { participantSectors } from '@/lib/profile-sectors'
 import { ParticipantAvatar } from '@/components/participant-avatar'
-import { BrochureActionButton } from '@/components/brochure-action-button'
 import { cn } from '@/lib/utils'
 import type { Participant } from '@/lib/data'
+import {
+  hasOrganizationWebsite,
+  organizationWebsiteHref,
+  organizationWebsiteLabel,
+} from '@/lib/organization-website'
 import { platformThemedSurfaceClass } from '@/lib/platform-themed-surface'
 import type { PlatformTheme } from '@/lib/platform-preferences'
-import { X, MapPin, Handshake, Search, ArrowUpRight, LogIn, Briefcase, Building2, User } from 'lucide-react'
+import { X, MapPin, Handshake, Search, ArrowUpRight, LogIn, Briefcase, Building2, User, Globe } from 'lucide-react'
 
 export function ParticipantProfileModal({
   participant,
@@ -85,7 +90,7 @@ export function ParticipantProfileModal({
 
               <div className="px-6 pb-6 pt-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <SectorBadge sector={participant.sector} />
+                  <SectorBadges sectors={participantSectors(participant)} />
                   {participant.name && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
                       <Building2 className="size-3" aria-hidden="true" />
@@ -98,11 +103,18 @@ export function ParticipantProfileModal({
                   {participant.description}
                 </Dialog.Description>
 
-                <BrochureActionButton
-                  brochure={participant.brochure}
-                  className="mt-4 w-full"
-                  size="lg"
-                />
+                {hasOrganizationWebsite(participant.websiteUrl) && (
+                  <a
+                    href={organizationWebsiteHref(participant.websiteUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-muted/70"
+                  >
+                    <Globe className="size-4 shrink-0" aria-hidden="true" />
+                    {organizationWebsiteLabel(participant.websiteUrl)}
+                    <ArrowUpRight className="size-4 shrink-0 opacity-70" aria-hidden="true" />
+                  </a>
+                )}
 
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
                   <section className="rounded-xl border border-border bg-muted/50 p-4">

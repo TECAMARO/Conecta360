@@ -13,6 +13,7 @@ import { MeetingRequestModal } from '@/components/meeting-request-modal'
 import { ParticipantProfileModal } from '@/components/participant-profile-modal'
 import { PlatformHeader } from '@/components/platform-header'
 import { PlatformLogoToggle } from '@/components/platform-logo-toggle'
+import { VerityBlockedOverlay } from '@/components/verity-blocked-overlay'
 import {
   timeSlots,
   participantById,
@@ -63,6 +64,7 @@ import {
   MEETING_STALE_REQUEST_MESSAGE,
 } from '@/lib/supabase/meeting-status'
 import { isOutgoingSendBlocked } from '@/lib/meeting-outgoing-limit'
+import { isVerityBlocked, normalizeVerityStatus } from '@/lib/verity-status'
 import { getEventSlotById } from '@/lib/meeting-slots'
 import { fetchProfileDisplayName, fetchMyProfile } from '@/lib/supabase/profiles-repository'
 import {
@@ -333,6 +335,54 @@ function PlatformApp() {
   }, [userId])
 
   useEffect(() => {
+    if (!userId) return
+
+    const channel = supabase
+      .channel(`platform-verity-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new as { verity_status?: string | null } | undefined
+          const nextStatus = normalizeVerityStatus(row?.verity_status)
+          setUserProfileState((prev) => {
+            const next = { ...prev, verityStatus: nextStatus }
+            setUserProfile(next)
+            return next
+          })
+          void (async () => {
+            try {
+              if (nextStatus === 'red') {
+                await reloadMeetings(userId)
+              } else {
+                const published = await fetchDirectoryParticipants(userId)
+                setDirectoryParticipants(published)
+                setParticipantRegistry(published)
+              }
+            } catch {
+              /* refresh best-effort */
+            }
+            window.dispatchEvent(new Event('conecta360-verity-updated'))
+          })()
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[realtime] verity channel error')
+        }
+      })
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [userId])
+
+  useEffect(() => {
     if (!userId || view !== 'mensajes') return
     void reloadMessaging(userId)
   }, [userId, view])
@@ -435,6 +485,9 @@ function PlatformApp() {
   const agendaDefaultTab =
     pendingRequestsCount(appointments) > 0 ? ('solicitudes' as const) : ('reuniones' as const)
   const outgoingSendBlocked = isOutgoingSendBlocked(appointments)
+  const verityBlocked = isVerityBlocked(userProfile.verityStatus)
+  const requestDisabled = outgoingSendBlocked || verityBlocked
+  const verityGuard = { verityBlocked }
 
   function showToast(
     msg: string,
@@ -456,7 +509,7 @@ function PlatformApp() {
   }
 
   function openRequest(participant: Participant) {
-    if (isOutgoingSendBlocked(appointments)) return
+    if (requestDisabled) return
     setSelected(participant)
     setModalOpen(true)
     void refreshSlotOccupancy()
@@ -473,6 +526,7 @@ function PlatformApp() {
   }
 
   function openProfile(participant: Participant) {
+    if (verityBlocked) return
     setSelected(participant)
     setProfileOpen(true)
   }
@@ -506,6 +560,7 @@ function PlatformApp() {
       time: slot.time,
       message: message.trim() || undefined,
     },
+      verityGuard,
     )
 
     if (!draft) {
@@ -579,6 +634,7 @@ function PlatformApp() {
         slotOccupancy,
         id,
         requesterConfirmed,
+        verityGuard,
       )
       if (!validation.ok) {
         showToast(validation.message)
@@ -611,6 +667,7 @@ function PlatformApp() {
         slotOccupancy,
         id,
         requesterConfirmed,
+        verityGuard,
       ).notifications
 
       await cancelPendingInSlotExcept(target.slotId, id)
@@ -946,14 +1003,14 @@ function PlatformApp() {
               onProfile={() => navigate('perfil')}
               onRequest={openRequest}
               onViewProfile={openProfile}
-              requestDisabled={outgoingSendBlocked}
+              requestDisabled={requestDisabled}
             />
           )}
           {view === 'explorar' && (
             <ExploreView
               onRequest={openRequest}
               onViewProfile={openProfile}
-              requestDisabled={outgoingSendBlocked}
+              requestDisabled={requestDisabled}
             />
           )}
           {view === 'agenda' && (
@@ -976,7 +1033,7 @@ function PlatformApp() {
             />
           )}
           {view === 'horarios' && <SchedulesView />}
-          {view === 'perfil' && <ProfileView />}
+          {view === 'perfil' && <ProfileView theme={platformTheme} />}
           {view === 'mensajes' && (
             <div className="flex min-h-0 flex-1 flex-col">
               <MessagesView
@@ -1007,7 +1064,7 @@ function PlatformApp() {
         theme={platformTheme}
         onOpenChange={setProfileOpen}
         onRequest={openRequest}
-        requestDisabled={outgoingSendBlocked}
+        requestDisabled={requestDisabled}
       />
 
       <div
@@ -1035,6 +1092,11 @@ function PlatformApp() {
           </div>
         )}
       </div>
+
+      <VerityBlockedOverlay
+        active={verityBlocked}
+        onLogout={() => void handleLogout()}
+      />
     </div>
   )
 }

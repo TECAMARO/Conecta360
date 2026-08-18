@@ -19,7 +19,7 @@ function RegistroForm() {
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState('')
   const [organization, setOrganization] = useState('')
-  const [sector, setSector] = useState('')
+  const [sectors, setSectors] = useState<string[]>([])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +27,7 @@ function RegistroForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!sector) return
+    if (sectors.length === 0) return
     setError(null)
     setLoading(true)
     try {
@@ -37,7 +37,7 @@ function RegistroForm() {
         fullName,
         role,
         organization,
-        sector,
+        sectors,
       })
       router.push(redirectTo)
     } catch (err) {
@@ -110,7 +110,7 @@ function RegistroForm() {
           />
         </div>
 
-        <SectorSelect value={sector} onChange={setSector} />
+        <SectorSelect multiple value={sectors} onChange={setSectors} />
 
         <div className="border-t border-[#dde8d8] pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#5a6b62]">

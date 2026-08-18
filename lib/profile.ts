@@ -1,6 +1,11 @@
 import type { CategoryId } from '@/lib/data'
 import type { Sector } from '@/lib/event-config'
-import type { CorporateBrochure } from '@/lib/corporate-brochure'
+import { normalizeOrganizationWebsite } from '@/lib/organization-website'
+import {
+  normalizeProfileSectors,
+  profileHasSector,
+} from '@/lib/profile-sectors'
+import type { VerityStatus } from '@/lib/verity-status'
 
 export const PROFILE_STORAGE_KEY = 'conecta360_profile'
 
@@ -9,13 +14,17 @@ export type UserProfile = {
   role: string
   organization: string
   sector: Sector | string
+  sectors: string[]
   location: string
   description: string
   offer: string[]
   seeking: string[]
+  offerCardTags?: string[] | null
+  seekingCardTags?: string[] | null
   isPublished: boolean
   photoUrl?: string | null
-  brochure?: CorporateBrochure | null
+  websiteUrl?: string | null
+  verityStatus?: VerityStatus
 }
 
 export const EMPTY_PROFILE: UserProfile = {
@@ -23,13 +32,16 @@ export const EMPTY_PROFILE: UserProfile = {
   role: '',
   organization: '',
   sector: '',
+  sectors: [],
   location: '',
   description: '',
   offer: [],
   seeking: [],
+  offerCardTags: null,
+  seekingCardTags: null,
   isPublished: false,
   photoUrl: null,
-  brochure: null,
+  websiteUrl: null,
 }
 
 function isDataUrl(value: string): boolean {
@@ -40,24 +52,6 @@ function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value)
 }
 
-/** Evita guardar PDFs/fotos en base64 en localStorage (cuota ~5 MB). */
-function brochureForLocalStorage(
-  brochure: CorporateBrochure | null | undefined,
-): CorporateBrochure | null {
-  if (!brochure) return null
-
-  const url = brochure.brochureUrl || brochure.publicUrl || brochure.dataUrl || ''
-  if (!url || isDataUrl(url)) return null
-
-  return {
-    fileName: brochure.fileName,
-    fileSize: brochure.fileSize,
-    brochureUrl: url,
-    uploadedAt: brochure.uploadedAt,
-    storagePath: brochure.storagePath,
-  }
-}
-
 function photoUrlForLocalStorage(photoUrl: string | null | undefined): string | null {
   if (!photoUrl) return null
   if (isDataUrl(photoUrl)) return null
@@ -65,20 +59,33 @@ function photoUrlForLocalStorage(photoUrl: string | null | undefined): string | 
 }
 
 function profileForLocalStorage(profile: UserProfile): UserProfile {
+  const sectors = normalizeProfileSectors(profile.sectors, profile.sector)
   return {
     ...profile,
     photoUrl: photoUrlForLocalStorage(profile.photoUrl),
-    brochure: brochureForLocalStorage(profile.brochure),
+    websiteUrl: normalizeOrganizationWebsite(profile.websiteUrl),
+    sectors,
+    sector: sectors[0] ?? '',
+    offerCardTags: profile.offerCardTags ?? null,
+    seekingCardTags: profile.seekingCardTags ?? null,
   }
 }
 
 function normalizeProfile(raw: Record<string, unknown>): UserProfile {
+  const sectors = normalizeProfileSectors(
+    Array.isArray(raw.sectors)
+      ? raw.sectors.filter((x): x is string => typeof x === 'string')
+      : null,
+    typeof raw.sector === 'string' ? raw.sector : '',
+  )
+
   return {
     ...EMPTY_PROFILE,
     fullName: typeof raw.fullName === 'string' ? raw.fullName : '',
     role: typeof raw.role === 'string' ? raw.role : '',
     organization: typeof raw.organization === 'string' ? raw.organization : '',
-    sector: typeof raw.sector === 'string' ? raw.sector : '',
+    sector: sectors[0] ?? '',
+    sectors,
     location: typeof raw.location === 'string' ? raw.location : '',
     description: typeof raw.description === 'string' ? raw.description : '',
     offer: Array.isArray(raw.offer) ? raw.offer.filter((x): x is string => typeof x === 'string') : [],
@@ -87,7 +94,15 @@ function normalizeProfile(raw: Record<string, unknown>): UserProfile {
       : [],
     isPublished: raw.isPublished === true,
     photoUrl: normalizePhotoUrl(raw.photoUrl),
-    brochure: normalizeBrochure(raw.brochure),
+    websiteUrl: normalizeOrganizationWebsite(
+      typeof raw.websiteUrl === 'string' ? raw.websiteUrl : null,
+    ),
+    offerCardTags: Array.isArray(raw.offerCardTags)
+      ? raw.offerCardTags.filter((x): x is string => typeof x === 'string')
+      : null,
+    seekingCardTags: Array.isArray(raw.seekingCardTags)
+      ? raw.seekingCardTags.filter((x): x is string => typeof x === 'string')
+      : null,
   }
 }
 
@@ -95,34 +110,6 @@ function normalizePhotoUrl(raw: unknown): string | null {
   if (typeof raw !== 'string' || !raw) return null
   if (isDataUrl(raw)) return null
   return raw
-}
-
-function normalizeBrochure(raw: unknown): CorporateBrochure | null {
-  if (!raw || typeof raw !== 'object') return null
-  const record = raw as Record<string, unknown>
-  const fileName = typeof record.fileName === 'string' ? record.fileName : null
-  const fileSize = typeof record.fileSize === 'number' ? record.fileSize : null
-  const uploadedAt = typeof record.uploadedAt === 'string' ? record.uploadedAt : null
-  const brochureUrl =
-    typeof record.brochureUrl === 'string'
-      ? record.brochureUrl
-      : typeof record.publicUrl === 'string'
-        ? record.publicUrl
-        : typeof record.dataUrl === 'string'
-          ? record.dataUrl
-          : null
-
-  if (!fileName || fileSize === null || !uploadedAt || !brochureUrl || isDataUrl(brochureUrl)) {
-    return null
-  }
-
-  return {
-    fileName,
-    fileSize,
-    brochureUrl,
-    uploadedAt,
-    storagePath: typeof record.storagePath === 'string' ? record.storagePath : undefined,
-  }
 }
 
 export function getUserProfile(): UserProfile | null {
@@ -158,10 +145,10 @@ export function setUserProfile(profile: UserProfile) {
   try {
     localStorage.setItem(
       PROFILE_STORAGE_KEY,
-      JSON.stringify({ ...lightweight, brochure: null, photoUrl: null }),
+      JSON.stringify({ ...lightweight, photoUrl: null }),
     )
     console.warn(
-      '[conecta360] Perfil guardado sin foto/brochure en caché local (cuota de almacenamiento).',
+      '[conecta360] Perfil guardado sin foto en caché local (cuota de almacenamiento).',
     )
   } catch (err) {
     console.warn('[conecta360] No se pudo guardar el perfil en localStorage.', err)
@@ -210,7 +197,7 @@ export function getPublishProfileMissingFields(profile: UserProfile): PublishPro
   const missing: PublishProfileField[] = []
   if (!profile.fullName.trim()) missing.push('fullName')
   if (!profile.organization.trim()) missing.push('organization')
-  if (!profile.sector.trim()) missing.push('sector')
+  if (!profileHasSector(profile)) missing.push('sector')
   if (!profile.location.trim()) missing.push('location')
   if (!profile.description.trim()) missing.push('description')
   if (profile.offer.length === 0) missing.push('offer')

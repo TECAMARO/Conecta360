@@ -8,7 +8,7 @@ import {
 } from '@/lib/supabase/mappers'
 import type { Participant } from '@/lib/data'
 import type { ProfileRow } from '@/lib/supabase/database.types'
-import { rowToBrochure } from '@/lib/supabase/brochures-repository'
+import { normalizeProfileSectors } from '@/lib/profile-sectors'
 
 async function requireAuthenticatedUser() {
   const { data, error } = await supabase.auth.getUser()
@@ -27,13 +27,21 @@ async function mergeProfileWithRemote(form: UserProfile, userId: string): Promis
     role: form.role.trim() || remote.role,
     organization: form.organization.trim() || remote.organization,
     sector: form.sector.trim() || remote.sector,
+    sectors:
+      form.sectors.length > 0
+        ? form.sectors
+        : normalizeProfileSectors(remote.sectors, remote.sector),
     location: form.location.trim() || remote.location,
     description: form.description.trim() || remote.description,
     offer: form.offer.length > 0 ? form.offer : remote.offer,
     seeking: form.seeking.length > 0 ? form.seeking : remote.seeking,
     isPublished: form.isPublished,
     photoUrl: form.photoUrl === undefined ? remote.photoUrl : form.photoUrl,
-    brochure: form.brochure === undefined ? remote.brochure : form.brochure,
+    websiteUrl: form.websiteUrl === undefined ? remote.websiteUrl : form.websiteUrl,
+    offerCardTags: form.offerCardTags === undefined ? remote.offerCardTags : form.offerCardTags,
+    seekingCardTags:
+      form.seekingCardTags === undefined ? remote.seekingCardTags : form.seekingCardTags,
+    verityStatus: remote.verityStatus,
   }
 }
 
@@ -52,8 +60,7 @@ export async function fetchMyProfile(userId: string): Promise<UserProfile | null
   if (error) throw new Error(error.message)
   if (!data) return null
 
-  const brochure = rowToBrochure(data)
-  return profileRowToUserProfile(data, brochure)
+  return profileRowToUserProfile(data)
 }
 
 export async function upsertMyProfile(
@@ -68,88 +75,11 @@ export async function upsertMyProfile(
 
   if (!merged.organization.trim()) {
     throw new Error(
-      'Completa el campo "Empresa u Organización" antes de guardar el perfil o subir el brochure.',
+      'Completa el campo "Empresa u Organización" antes de guardar el perfil.',
     )
   }
 
   const payload = buildProfileWritePayload(user.id, merged, email ?? user.email)
-
-  const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' })
-  if (error) throw new Error(error.message)
-  return user.id
-}
-
-/** Updates only brochure_url when the profile row already exists. */
-export async function updateMyProfileBrochureUrl(brochureUrl: string | null): Promise<void> {
-  const user = await requireAuthenticatedUser()
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({
-      brochure_url: brochureUrl,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', user.id)
-    .select('id')
-    .maybeSingle()
-
-  if (error) throw new Error(error.message)
-  if (!data) {
-    throw new Error(
-      'No se encontró tu perfil. Completa "Empresa u Organización" y guarda el perfil antes de adjuntar el brochure.',
-    )
-  }
-}
-
-/**
- * Saves brochure URL: tries a targeted update first; falls back to full upsert
- * merged with remote/form data when the row does not exist yet.
- */
-export async function saveMyProfileBrochure(
-  brochureUrl: string,
-  formProfile: UserProfile,
-  email?: string | null,
-): Promise<string> {
-  const user = await requireAuthenticatedUser()
-
-  const { data: existing, error: fetchError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (fetchError) throw new Error(fetchError.message)
-
-  if (existing) {
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        brochure_url: brochureUrl,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id)
-
-    if (error) throw new Error(error.message)
-    return user.id
-  }
-
-  const merged = await mergeProfileWithRemote(
-    { ...formProfile, brochure: formProfile.brochure ?? null },
-    user.id,
-  )
-
-  if (!merged.organization.trim()) {
-    throw new Error(
-      'Completa el campo "Empresa u Organización" antes de subir el brochure.',
-    )
-  }
-
-  const payload = buildProfileWritePayload(
-    user.id,
-    { ...merged, brochure: formProfile.brochure },
-    email ?? user.email,
-  )
-  payload.brochure_url = brochureUrl
 
   const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' })
   if (error) throw new Error(error.message)
@@ -161,6 +91,7 @@ export async function fetchPublishedProfiles(currentUserId?: string | null): Pro
     .from('profiles')
     .select('*')
     .eq('is_published', true)
+    .neq('verity_status', 'red')
     .order('organization_name', { ascending: true })
 
   if (error) throw new Error(error.message)
@@ -169,10 +100,8 @@ export async function fetchPublishedProfiles(currentUserId?: string | null): Pro
   const participants: Participant[] = []
 
   for (const row of rows) {
-    const brochure = rowToBrochure(row)
     const participant = profileRowToParticipant(row, {
       isCurrentUser: currentUserId ? row.id === currentUserId : false,
-      brochure,
     })
     if (participant) participants.push(participant)
   }
@@ -193,10 +122,8 @@ export async function fetchProfilesByIds(
 
   const participants: Participant[] = []
   for (const row of (data ?? []) as ProfileRow[]) {
-    const brochure = rowToBrochure(row)
     const participant = profileRowToAgendaParticipant(row, {
       isCurrentUser: currentUserId ? row.id === currentUserId : false,
-      brochure,
     })
     if (participant) participants.push(participant)
   }

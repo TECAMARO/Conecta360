@@ -1,7 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { SectorBadge } from '@/components/sector-badge'
+import { SectorBadges } from '@/components/sector-badge'
+import { participantSectors } from '@/lib/profile-sectors'
 import { formatSlotTimeDisplay } from '@/lib/slot-time-display'
 import { ParticipantAvatar } from '@/components/participant-avatar'
 import { cn } from '@/lib/utils'
@@ -207,7 +208,7 @@ export function DashboardView({
                         <p className="truncate text-xs text-muted-foreground">{p.role}</p>
                       )}
                       <div className="mt-1">
-                        <SectorBadge sector={p.sector} />
+                        <SectorBadges sectors={participantSectors(p)} />
                       </div>
                     </div>
                     <Button
