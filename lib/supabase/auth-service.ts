@@ -1,7 +1,11 @@
 import { supabase } from '@/src/lib/supabaseClient'
 import { isMasterAdminEmail } from '@/lib/admin-auth/constants'
 import { getAuthSession, setAuthSession, type AuthSession } from '@/lib/auth'
-import { REGISTRATION_CREDENTIAL_IN_USE_MESSAGE } from '@/lib/delegate-access/constants'
+import {
+  DELEGATE_CANNOT_REGISTER_MESSAGE,
+  REGISTRATION_CREDENTIAL_IN_USE_MESSAGE,
+  mapRegistrationSignUpError,
+} from '@/lib/delegate-access/constants'
 import { EMPTY_PROFILE, setUserProfile } from '@/lib/profile'
 import { normalizeProfileSectors } from '@/lib/profile-sectors'
 import { upsertMyProfile } from '@/lib/supabase/profiles-repository'
@@ -118,7 +122,11 @@ export async function signUpWithEmail(args: {
       }
     }
   } catch (err) {
-    if (err instanceof Error && err.message === REGISTRATION_CREDENTIAL_IN_USE_MESSAGE) {
+    if (
+      err instanceof Error &&
+      (err.message === REGISTRATION_CREDENTIAL_IN_USE_MESSAGE ||
+        err.message === DELEGATE_CANNOT_REGISTER_MESSAGE)
+    ) {
       throw err
     }
     /* Fallo técnico del pre-check: continuar con signUp (trigger SQL + Auth). */
@@ -140,17 +148,7 @@ export async function signUpWithEmail(args: {
   })
 
   if (error) {
-    const msg = error.message.toLowerCase()
-    if (
-      msg.includes('already') ||
-      msg.includes('registered') ||
-      msg.includes('credential') ||
-      msg.includes('credential_in_use') ||
-      msg.includes('in use')
-    ) {
-      throw new Error(REGISTRATION_CREDENTIAL_IN_USE_MESSAGE)
-    }
-    throw new Error(error.message)
+    throw new Error(mapRegistrationSignUpError(error.message))
   }
 
   const user = data.user

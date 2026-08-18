@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import {
+  DELEGATE_CANNOT_REGISTER_MESSAGE,
   normalizeDelegateEmail,
   REGISTRATION_CREDENTIAL_IN_USE_MESSAGE,
 } from '@/lib/delegate-access/constants'
@@ -7,11 +8,22 @@ import { createServiceRoleSupabaseClient } from '@/lib/supabase/service-role'
 
 export const runtime = 'nodejs'
 
-async function isEmailBlockedForRegistration(email: string): Promise<boolean> {
+type RegistrationBlockReason = 'delegate' | 'existing' | null
+
+async function getRegistrationBlockReason(email: string): Promise<RegistrationBlockReason> {
   const normalized = normalizeDelegateEmail(email)
-  if (!normalized) return true
+  if (!normalized) return 'existing'
 
   const service = createServiceRoleSupabaseClient()
+
+  const { data: delegated } = await service
+    .from('profile_delegated_access')
+    .select('id')
+    .eq('email_normalized', normalized)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (delegated) return 'delegate'
 
   const { data: rpcAvailable, error: rpcError } = await service.rpc(
     'is_email_available_for_registration',
@@ -19,20 +31,16 @@ async function isEmailBlockedForRegistration(email: string): Promise<boolean> {
   )
 
   if (!rpcError && typeof rpcAvailable === 'boolean') {
-    return !rpcAvailable
+    return rpcAvailable ? null : 'existing'
   }
 
-  const [{ data: delegated }, { data: profile }] = await Promise.all([
-    service
-      .from('profile_delegated_access')
-      .select('id')
-      .eq('email_normalized', normalized)
-      .eq('is_active', true)
-      .maybeSingle(),
-    service.from('profiles').select('id').ilike('email', normalized).maybeSingle(),
-  ])
+  const { data: profile } = await service
+    .from('profiles')
+    .select('id')
+    .ilike('email', normalized)
+    .maybeSingle()
 
-  if (delegated || profile) return true
+  if (profile) return 'existing'
 
   const { data: listed, error: listError } = await service.auth.admin.listUsers({
     page: 1,
@@ -41,10 +49,18 @@ async function isEmailBlockedForRegistration(email: string): Promise<boolean> {
 
   if (listError) {
     console.warn('[check-registration-email] listUsers fallback failed:', listError.message)
-    return false
+    return null
   }
 
-  return listed.users.some((user) => normalizeDelegateEmail(user.email ?? '') === normalized)
+  const existsInAuth = listed.users.some(
+    (user) => normalizeDelegateEmail(user.email ?? '') === normalized,
+  )
+  return existsInAuth ? 'existing' : null
+}
+
+function messageForBlockReason(reason: RegistrationBlockReason): string {
+  if (reason === 'delegate') return DELEGATE_CANNOT_REGISTER_MESSAGE
+  return REGISTRATION_CREDENTIAL_IN_USE_MESSAGE
 }
 
 /** Guard opcional antes de signUp — nunca bloquea el registro por fallo técnico. */
@@ -60,18 +76,19 @@ export async function POST(request: Request) {
       })
     }
 
-    let blocked = false
+    let blockReason: RegistrationBlockReason = null
     try {
-      blocked = await isEmailBlockedForRegistration(email)
+      blockReason = await getRegistrationBlockReason(email)
     } catch (err) {
       console.warn('[check-registration-email] check skipped:', err)
       return NextResponse.json({ available: true, checkSkipped: true })
     }
 
-    if (blocked) {
+    if (blockReason) {
       return NextResponse.json({
         available: false,
-        message: REGISTRATION_CREDENTIAL_IN_USE_MESSAGE,
+        reason: blockReason,
+        message: messageForBlockReason(blockReason),
       })
     }
 
