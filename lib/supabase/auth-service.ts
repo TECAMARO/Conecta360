@@ -22,11 +22,12 @@ async function clearDelegateContextCookie(): Promise<void> {
 async function tryDelegateLogin(email: string, password: string): Promise<AuthSession | null> {
   const res = await fetch('/api/auth/delegate-login', {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
 
-  const data = (await res.json()) as {
+  let data: {
     ok?: boolean
     error?: string
     access_token?: string
@@ -36,9 +37,20 @@ async function tryDelegateLogin(email: string, password: string): Promise<AuthSe
     delegateEmail?: string
   }
 
-  if (!res.ok || !data.ok || !data.access_token || !data.refresh_token || !data.ownerUserId) {
-    if (res.status === 401) return null
+  try {
+    data = (await res.json()) as typeof data
+  } catch {
+    throw new Error('No se pudo iniciar sesión (respuesta inválida del servidor).')
+  }
+
+  if (res.status === 401) return null
+
+  if (!res.ok || !data.ok) {
     throw new Error(data.error ?? 'No se pudo iniciar sesión.')
+  }
+
+  if (!data.access_token || !data.refresh_token || !data.ownerUserId) {
+    throw new Error(data.error ?? 'No se pudo establecer la sesión delegada.')
   }
 
   const { error: sessionError } = await supabase.auth.setSession({
@@ -75,10 +87,16 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return session
   }
 
-  const delegateSession = await tryDelegateLogin(email, password)
-  if (delegateSession) return delegateSession
+  try {
+    const delegateSession = await tryDelegateLogin(email, password)
+    if (delegateSession) return delegateSession
+  } catch (delegateErr) {
+    throw delegateErr instanceof Error
+      ? delegateErr
+      : new Error('No se pudo iniciar sesión como delegado.')
+  }
 
-  throw new Error(error?.message ?? 'Credenciales inválidas.')
+  throw new Error('Credenciales inválidas.')
 }
 
 /** Tras login del Admin Maestro: emite OTP (SQL + correo SMTP) y prepara 2FA. */

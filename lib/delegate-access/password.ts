@@ -8,7 +8,11 @@ export async function hashDelegatePassword(plain: string): Promise<string> {
 
 export async function verifyDelegatePassword(plain: string, hashValue: string): Promise<boolean> {
   if (!plain || !hashValue) return false
-  return compare(plain, hashValue)
+  try {
+    return await compare(plain, hashValue)
+  } catch {
+    return false
+  }
 }
 
 export function isDelegatePasswordStrongEnough(password: string): boolean {

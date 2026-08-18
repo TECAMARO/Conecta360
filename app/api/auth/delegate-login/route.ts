@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createServiceRoleSupabaseClient } from '@/lib/supabase/service-role'
 import {
   buildDelegateSessionCookieValue,
   delegateSessionCookieOptions,
 } from '@/lib/delegate-access/delegate-cookie'
 import { normalizeDelegateEmail } from '@/lib/delegate-access/constants'
+import { establishOwnerSessionForDelegate } from '@/lib/delegate-access/establish-owner-session'
 import { verifyDelegatePassword } from '@/lib/delegate-access/password'
 
 export const runtime = 'nodejs'
@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (delegateError) {
+      console.error('[auth/delegate-login] delegate lookup:', delegateError.message)
       return NextResponse.json({ error: delegateError.message }, { status: 500 })
     }
 
@@ -56,39 +57,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credenciales inválidas.' }, { status: 401 })
     }
 
-    const { data: ownerProfile, error: profileError } = await service
-      .from('profiles')
-      .select('id, email')
-      .eq('id', row.owner_profile_id)
-      .maybeSingle()
-
-    if (profileError || !ownerProfile?.email?.trim()) {
-      return NextResponse.json({ error: 'Perfil titular no encontrado.' }, { status: 404 })
+    let ownerSession: Awaited<ReturnType<typeof establishOwnerSessionForDelegate>>
+    try {
+      ownerSession = await establishOwnerSessionForDelegate({
+        serviceClient: service,
+        ownerUserId: row.owner_profile_id,
+      })
+    } catch (sessionErr) {
+      const message =
+        sessionErr instanceof Error
+          ? sessionErr.message
+          : 'No se pudo establecer la sesión del titular.'
+      console.error('[auth/delegate-login] owner session:', message)
+      return NextResponse.json({ error: message }, { status: 500 })
     }
 
-    const ownerEmail = ownerProfile.email.trim()
+    const { session, ownerEmail } = ownerSession
 
-    const { data: linkData, error: linkError } = await service.auth.admin.generateLink({
-      type: 'magiclink',
-      email: ownerEmail,
-    })
-
-    if (linkError || !linkData?.properties?.hashed_token) {
+    if (!session.access_token || !session.refresh_token) {
+      console.error('[auth/delegate-login] incomplete session tokens')
       return NextResponse.json(
-        { error: linkError?.message ?? 'No se pudo iniciar sesión delegada.' },
-        { status: 500 },
-      )
-    }
-
-    const serverSupabase = await createServerSupabaseClient()
-    const { data: verified, error: verifyError } = await serverSupabase.auth.verifyOtp({
-      token_hash: linkData.properties.hashed_token,
-      type: 'email',
-    })
-
-    if (verifyError || !verified.session) {
-      return NextResponse.json(
-        { error: verifyError?.message ?? 'No se pudo establecer la sesión.' },
+        { error: 'No se pudo obtener una sesión válida del titular.' },
         { status: 500 },
       )
     }
@@ -106,8 +95,8 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({
       ok: true,
-      access_token: verified.session.access_token,
-      refresh_token: verified.session.refresh_token,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
       ownerUserId: row.owner_profile_id,
       ownerEmail,
       delegateEmail: row.email,
@@ -116,7 +105,11 @@ export async function POST(request: Request) {
     response.cookies.set(cookie.name, cookie.value, delegateSessionCookieOptions(cookie.expires))
     return response
   } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : 'No se pudo iniciar sesión.'
     console.error('[auth/delegate-login]', err)
-    return NextResponse.json({ error: 'No se pudo iniciar sesión.' }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
