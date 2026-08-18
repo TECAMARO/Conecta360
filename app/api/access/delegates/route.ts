@@ -1,23 +1,20 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import {
-  DELEGATE_EMAIL_AVAILABLE_MESSAGE,
   DELEGATE_EMAIL_UNAVAILABLE_MESSAGE,
   normalizeDelegateEmail,
 } from '@/lib/delegate-access/constants'
+import { createDelegateAccessForOwner } from '@/lib/delegate-access/create-delegate-access'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createServiceRoleSupabaseClient } from '@/lib/supabase/service-role'
 import {
-  buildDelegateSessionCookieValue,
   clearDelegateSessionCookieOptions,
-  delegateSessionCookieOptions,
   parseDelegateSessionCookie,
 } from '@/lib/delegate-access/delegate-cookie'
 import { DELEGATE_SESSION_COOKIE } from '@/lib/delegate-access/constants'
 import {
   hashDelegatePassword,
   isDelegatePasswordStrongEnough,
-  verifyDelegatePassword,
 } from '@/lib/delegate-access/password'
 
 export const runtime = 'nodejs'
@@ -37,6 +34,23 @@ function isOwnerSessionBlockedByDelegateCookie(
   delegateCtx: Awaited<ReturnType<typeof parseDelegateSessionCookie>>,
 ): boolean {
   return Boolean(delegateCtx && delegateCtx.ownerUserId === userId)
+}
+
+function mapRpcCreateError(message: string): string {
+  const upper = message.toUpperCase()
+  if (
+    upper.includes('EMAIL_NOT_AVAILABLE') ||
+    upper.includes('DELEGATE_EMAIL_SAME_AS_OWNER')
+  ) {
+    return DELEGATE_EMAIL_UNAVAILABLE_MESSAGE
+  }
+  if (upper.includes('NOT_AUTHENTICATED')) {
+    return 'No autorizado.'
+  }
+  if (upper.includes('CREATE_PROFILE_DELEGATED_ACCESS')) {
+    return 'Falta ejecutar la función create_profile_delegated_access en Supabase (profile-delegated-access.sql).'
+  }
+  return message
 }
 
 /** Lista accesos delegados del titular autenticado. */
@@ -111,59 +125,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Acción no permitida en sesión delegada.' }, { status: 403 })
     }
 
-    const normalized = normalizeDelegateEmail(email)
-    if (normalized === normalizeDelegateEmail(user.email ?? '')) {
-      return NextResponse.json(
-        { error: DELEGATE_EMAIL_UNAVAILABLE_MESSAGE },
-        { status: 409 },
-      )
-    }
-
-    const { data: available, error: checkError } = await supabase.rpc(
-      'check_email_available_for_delegate',
-      { p_email: email },
-    )
-
-    if (checkError) {
-      return NextResponse.json({ error: checkError.message }, { status: 500 })
-    }
-
-    if (!available) {
-      return NextResponse.json(
-        { error: DELEGATE_EMAIL_UNAVAILABLE_MESSAGE },
-        { status: 409 },
-      )
-    }
-
     const passwordHash = await hashDelegatePassword(password)
-    const service = createServiceRoleSupabaseClient()
 
-    const { data: inserted, error: insertError } = await service
-      .from('profile_delegated_access')
-      .insert({
-        owner_profile_id: user.id,
-        email,
-        password_hash: passwordHash,
-        is_active: true,
-        created_by: user.id,
-      })
-      .select('id, email, is_active, created_at, last_used_at')
-      .single()
+    let serviceClient
+    try {
+      serviceClient = createServiceRoleSupabaseClient()
+    } catch (serviceErr) {
+      console.warn('[access/delegates POST] service role unavailable:', serviceErr)
+      const { data: rpcRow, error: rpcOnlyError } = await supabase.rpc(
+        'create_profile_delegated_access',
+        { p_email: email, p_password_hash: passwordHash },
+      )
 
-    if (insertError) {
-      if (insertError.code === '23505') {
+      if (rpcOnlyError || !rpcRow) {
         return NextResponse.json(
-          { error: DELEGATE_EMAIL_UNAVAILABLE_MESSAGE },
-          { status: 409 },
+          {
+            error: mapRpcCreateError(
+              rpcOnlyError?.message ??
+                'No se pudo crear el acceso. Ejecuta profile-delegated-access.sql en Supabase.',
+            ),
+          },
+          { status: 500 },
         )
       }
-      return NextResponse.json({ error: insertError.message }, { status: 500 })
+
+      return NextResponse.json({ ok: true, delegate: rpcRow })
     }
 
-    return NextResponse.json({ ok: true, delegate: inserted })
+    const result = await createDelegateAccessForOwner({
+      ownerUserId: user.id,
+      ownerEmail: user.email ?? '',
+      email,
+      passwordHash,
+      userClient: supabase,
+      serviceClient,
+    })
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+
+    return NextResponse.json({ ok: true, delegate: result.delegate })
   } catch (err) {
     console.error('[access/delegates POST]', err)
-    return NextResponse.json({ error: 'No se pudo crear el acceso delegado.' }, { status: 500 })
+    const message =
+      err instanceof Error
+        ? err.message
+        : 'No se pudo crear el acceso delegado.'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 

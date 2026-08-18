@@ -226,7 +226,85 @@ create policy "delegated_access_select_admin"
     )
   );
 
--- INSERT/UPDATE/DELETE solo vía service role (API server-side)
+-- INSERT/UPDATE/DELETE vía RPC titular o service role (API server-side)
 
--- 8. Recargar caché PostgREST
+-- 8. Crear / reactivar acceso delegado (titular autenticado)
+create or replace function public.create_profile_delegated_access(
+  p_email text,
+  p_password_hash text
+)
+returns public.profile_delegated_access
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_norm text := lower(trim(p_email));
+  v_row public.profile_delegated_access;
+  v_existing public.profile_delegated_access;
+begin
+  if v_uid is null then
+    raise exception 'NOT_AUTHENTICATED';
+  end if;
+
+  if v_norm is null or v_norm = '' or position('@' in v_norm) = 0 then
+    raise exception 'INVALID_EMAIL';
+  end if;
+
+  if char_length(trim(p_password_hash)) = 0 then
+    raise exception 'INVALID_PASSWORD_HASH';
+  end if;
+
+  if not public.check_email_available_for_delegate(p_email) then
+    raise exception 'EMAIL_NOT_AVAILABLE';
+  end if;
+
+  select d.*
+  into v_existing
+  from public.profile_delegated_access d
+  where d.email_normalized = v_norm
+  limit 1;
+
+  if found then
+    if v_existing.owner_profile_id <> v_uid then
+      raise exception 'EMAIL_NOT_AVAILABLE';
+    end if;
+
+    update public.profile_delegated_access d
+    set
+      email = trim(p_email),
+      password_hash = p_password_hash,
+      is_active = true,
+      created_by = v_uid
+    where d.id = v_existing.id
+    returning d.* into v_row;
+
+    return v_row;
+  end if;
+
+  insert into public.profile_delegated_access (
+    owner_profile_id,
+    email,
+    password_hash,
+    is_active,
+    created_by
+  )
+  values (
+    v_uid,
+    trim(p_email),
+    p_password_hash,
+    true,
+    v_uid
+  )
+  returning * into v_row;
+
+  return v_row;
+end;
+$$;
+
+revoke all on function public.create_profile_delegated_access(text, text) from public;
+grant execute on function public.create_profile_delegated_access(text, text) to authenticated;
+
+-- 9. Recargar caché PostgREST
 notify pgrst, 'reload schema';

@@ -151,7 +151,11 @@ export function AccessView({
       const data = (await res.json()) as { ok?: boolean; error?: string }
 
       if (!res.ok || !data.ok) {
-        onNotify?.(data.error ?? 'No se pudo crear el acceso.', 'warning')
+        onNotify?.(
+          data.error ??
+            'No se pudo crear el acceso delegado. Revisa la consola del servidor o ejecuta profile-delegated-access.sql en Supabase.',
+          'warning',
+        )
         return
       }
 
