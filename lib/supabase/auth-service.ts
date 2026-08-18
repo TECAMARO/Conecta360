@@ -102,19 +102,26 @@ export async function signUpWithEmail(args: {
   organization: string
   sectors: string[]
 }): Promise<AuthSession> {
-  const checkRes = await fetch('/api/access/check-registration-email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: args.email }),
-  })
-  const checkData = (await checkRes.json()) as { available?: boolean; message?: string; error?: string }
-
-  if (!checkRes.ok) {
-    throw new Error(checkData.error ?? 'No se pudo verificar el correo.')
-  }
-
-  if (!checkData.available) {
-    throw new Error(checkData.message ?? REGISTRATION_CREDENTIAL_IN_USE_MESSAGE)
+  try {
+    const checkRes = await fetch('/api/access/check-registration-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: args.email }),
+    })
+    if (checkRes.ok) {
+      const checkData = (await checkRes.json()) as {
+        available?: boolean
+        message?: string
+      }
+      if (checkData.available === false) {
+        throw new Error(checkData.message ?? REGISTRATION_CREDENTIAL_IN_USE_MESSAGE)
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === REGISTRATION_CREDENTIAL_IN_USE_MESSAGE) {
+      throw err
+    }
+    /* Fallo técnico del pre-check: continuar con signUp (trigger SQL + Auth). */
   }
 
   const normalizedSectors = normalizeProfileSectors(args.sectors)
@@ -134,7 +141,13 @@ export async function signUpWithEmail(args: {
 
   if (error) {
     const msg = error.message.toLowerCase()
-    if (msg.includes('already') || msg.includes('registered') || msg.includes('credential')) {
+    if (
+      msg.includes('already') ||
+      msg.includes('registered') ||
+      msg.includes('credential') ||
+      msg.includes('credential_in_use') ||
+      msg.includes('in use')
+    ) {
       throw new Error(REGISTRATION_CREDENTIAL_IN_USE_MESSAGE)
     }
     throw new Error(error.message)
