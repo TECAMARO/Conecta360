@@ -225,7 +225,6 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
                   )}
                 >
                   {filtered.length} de {SECTORS.length} sectores
-                  {multiple ? ` · ${selected.length}/${maxSelections} seleccionados` : ''}
                 </p>
               </div>
               <ul

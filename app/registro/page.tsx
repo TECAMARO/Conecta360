@@ -4,13 +4,14 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { AuthFieldLabel } from '@/components/auth/auth-field-label'
 import { PasswordInput } from '@/components/auth/password-input'
 import { SectorSelect, profileInputClass } from '@/components/sector-select'
 import { Button } from '@/components/ui/button'
 import { signUpWithEmail } from '@/lib/supabase/auth-service'
 import { EVENT } from '@/lib/event-config'
 import { cn } from '@/lib/utils'
-import { Loader2 } from 'lucide-react'
+import { Briefcase, Building2, Loader2, LockKeyhole, Mail, User } from 'lucide-react'
 
 function RegistroForm() {
   const router = useRouter()
@@ -60,9 +61,9 @@ function RegistroForm() {
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <div>
-          <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+          <AuthFieldLabel htmlFor="fullName" icon={User}>
             Nombre completo
-          </label>
+          </AuthFieldLabel>
           <input
             id="fullName"
             type="text"
@@ -76,9 +77,9 @@ function RegistroForm() {
         </div>
 
         <div>
-          <label htmlFor="role" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+          <AuthFieldLabel htmlFor="role" icon={Briefcase}>
             Cargo
-          </label>
+          </AuthFieldLabel>
           <input
             id="role"
             type="text"
@@ -92,12 +93,9 @@ function RegistroForm() {
         </div>
 
         <div>
-          <label
-            htmlFor="organization"
-            className="mb-1.5 block text-sm font-medium text-[#1a3c34]"
-          >
+          <AuthFieldLabel htmlFor="organization" icon={Building2}>
             Empresa u Organización
-          </label>
+          </AuthFieldLabel>
           <input
             id="organization"
             type="text"
@@ -118,9 +116,9 @@ function RegistroForm() {
           </p>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+              <AuthFieldLabel htmlFor="email" icon={Mail}>
                 Correo electrónico
-              </label>
+              </AuthFieldLabel>
               <input
                 id="email"
                 type="email"
@@ -133,9 +131,9 @@ function RegistroForm() {
               />
             </div>
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+              <AuthFieldLabel htmlFor="password" icon={LockKeyhole}>
                 Contraseña
-              </label>
+              </AuthFieldLabel>
               <PasswordInput
                 id="password"
                 autoComplete="new-password"

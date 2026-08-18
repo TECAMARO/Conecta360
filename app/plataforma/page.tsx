@@ -9,6 +9,7 @@ import { AgendaView } from '@/components/agenda-view'
 import { ProfileView } from '@/components/profile-view'
 import { MessagesView } from '@/components/messages-view'
 import { SchedulesView } from '@/components/schedules-view'
+import { AccessView } from '@/components/access-view'
 import { MeetingRequestModal } from '@/components/meeting-request-modal'
 import { ParticipantProfileModal } from '@/components/participant-profile-modal'
 import { PlatformHeader } from '@/components/platform-header'
@@ -98,6 +99,7 @@ const VIEW_PARAM: Record<string, View> = {
   horarios: 'horarios',
   perfil: 'perfil',
   mensajes: 'mensajes',
+  accesos: 'accesos',
 }
 
 function mergeConversationMessages(
@@ -150,6 +152,8 @@ function PlatformApp() {
 
   const [authReady, setAuthReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [isDelegateSession, setIsDelegateSession] = useState(false)
+  const [delegateEmail, setDelegateEmail] = useState<string | null>(null)
   const [view, setView] = useState<View>(initialView)
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [slotOccupancy, setSlotOccupancy] = useState<Appointment[]>([])
@@ -261,6 +265,8 @@ function PlatformApp() {
         return
       }
       setUserId(session.userId)
+      setIsDelegateSession(Boolean(session.isDelegate))
+      setDelegateEmail(session.isDelegate ? session.email : null)
       try {
         const published = await fetchDirectoryParticipants(session.userId)
         setDirectoryParticipants(published)
@@ -877,6 +883,9 @@ function PlatformApp() {
   }
 
   function navigate(next: View) {
+    if (isDelegateSession && next === 'accesos') {
+      next = 'inicio'
+    }
     if (next === 'agenda') {
       setAgendaNavigateKey((key) => key + 1)
     }
@@ -936,6 +945,7 @@ function PlatformApp() {
           userProfile={userProfile}
           logoVariant={platformLogo}
           onLogoToggle={togglePlatformLogo}
+          hideOwnerSections={isDelegateSession}
         />
       </div>
 
@@ -958,6 +968,7 @@ function PlatformApp() {
               userProfile={userProfile}
               logoVariant={platformLogo}
               onLogoToggle={togglePlatformLogo}
+              hideOwnerSections={isDelegateSession}
             />
           </div>
         </>
@@ -988,6 +999,8 @@ function PlatformApp() {
               onMarkNotificationRead={markNotificationRead}
               onMarkAllNotificationsRead={markAllNotificationsRead}
               userId={userId}
+              isDelegateSession={isDelegateSession}
+              delegateEmail={delegateEmail}
               onNotify={(msg, durationMs) => showToast(msg, 'success', durationMs ?? 3500)}
             />
           </div>
@@ -1044,6 +1057,9 @@ function PlatformApp() {
                 onOpen={handleOpenConversation}
               />
             </div>
+          )}
+          {view === 'accesos' && !isDelegateSession && (
+            <AccessView onNotify={(msg, variant) => showToast(msg, variant ?? 'success')} />
           )}
           </div>
         </div>

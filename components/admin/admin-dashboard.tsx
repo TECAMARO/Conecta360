@@ -24,6 +24,9 @@ import {
   Ban,
   Building2,
   CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  KeyRound,
   Loader2,
   Users,
 } from 'lucide-react'
@@ -95,6 +98,7 @@ export function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [verityUpdatingId, setVerityUpdatingId] = useState<string | null>(null)
+  const [expandedAccessProfileId, setExpandedAccessProfileId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' } | null>(
     null,
   )
@@ -248,6 +252,7 @@ export function AdminDashboard() {
                   <th className="px-5 py-3 font-semibold">Representante</th>
                   <th className="px-5 py-3 font-semibold">Empresa</th>
                   <th className="px-5 py-3 font-semibold">Correo</th>
+                  <th className="px-5 py-3 font-semibold">Accesos</th>
                   <th className="px-5 py-3 font-semibold">Registro</th>
                   <th className="px-5 py-3 font-semibold">Confirmadas</th>
                   <th className="px-5 py-3 font-semibold">Pendientes</th>
@@ -258,6 +263,9 @@ export function AdminDashboard() {
                 {profiles.map((profile) => {
                   const isAdminProfile = profile.role === 'admin'
                   const verityStatus = normalizeVerityStatus(profile.verity_status)
+                  const delegateEmails = profile.delegatedAccessEmails ?? []
+                  const hasDelegates = delegateEmails.length > 0
+                  const accessExpanded = expandedAccessProfileId === profile.id
 
                   return (
                   <tr key={profile.id} className="hover:bg-[#fafcfa]">
@@ -282,6 +290,43 @@ export function AdminDashboard() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{profile.email ?? '—'}</td>
+                    <td className="px-5 py-3">
+                      {hasDelegates ? (
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedAccessProfileId(accessExpanded ? null : profile.id)
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#dde8d8] bg-[#f8fbf8] px-2.5 py-1 text-xs font-medium text-[#1a3c34] hover:bg-[#eef3eb]"
+                          >
+                            {accessExpanded ? (
+                              <ChevronDown className="size-3.5" aria-hidden="true" />
+                            ) : (
+                              <ChevronRight className="size-3.5" aria-hidden="true" />
+                            )}
+                            <KeyRound className="size-3.5 text-[#8ac441]" aria-hidden="true" />
+                            Acceso delegado ({delegateEmails.length})
+                          </button>
+                          {accessExpanded && (
+                            <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                              {delegateEmails.map((email) => (
+                                <li key={email} className="truncate pl-1">
+                                  {email}
+                                </li>
+                              ))}
+                              <li className="pl-1 text-[11px] text-[#1a3c34]/60">
+                                Verity {verityStatus}: movimientos{' '}
+                                {verityStatus === 'red' ? 'bloqueados' : 'libres'} para titular y
+                                delegado(s).
+                              </li>
+                            </ul>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 whitespace-nowrap text-muted-foreground">
                       {formatDate(profile.created_at)}
                     </td>
@@ -311,7 +356,7 @@ export function AdminDashboard() {
                 })}
                 {profiles.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-5 py-10 text-center text-muted-foreground">
+                    <td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">
                       No hay perfiles registrados.
                     </td>
                   </tr>

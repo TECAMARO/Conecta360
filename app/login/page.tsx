@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { AuthShell } from '@/components/auth/auth-shell'
+import { AuthFieldLabel } from '@/components/auth/auth-field-label'
 import { PasswordInput } from '@/components/auth/password-input'
 import { Button } from '@/components/ui/button'
 import { signInWithEmail, initiateMasterAdminOtpFlow, requiresMasterAdminOtp } from '@/lib/supabase/auth-service'
 import { cn } from '@/lib/utils'
-import { Loader2 } from 'lucide-react'
+import { Loader2, LockKeyhole, Mail } from 'lucide-react'
 
 const inputClass =
   'w-full rounded-lg border border-[#dde8d8] bg-white px-3.5 py-2.5 text-sm text-[#1a3c34] outline-none transition-colors placeholder:text-[#5a6b62]/60 focus:border-[#8ac441] focus:ring-2 focus:ring-[#8ac441]/25'
@@ -64,9 +65,9 @@ function LoginForm() {
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+          <AuthFieldLabel htmlFor="email" icon={Mail}>
             Correo electrónico
-          </label>
+          </AuthFieldLabel>
           <input
             id="email"
             type="email"
@@ -80,9 +81,9 @@ function LoginForm() {
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-[#1a3c34]">
+          <AuthFieldLabel htmlFor="password" icon={LockKeyhole}>
             Contraseña
-          </label>
+          </AuthFieldLabel>
           <PasswordInput
             id="password"
             autoComplete="current-password"

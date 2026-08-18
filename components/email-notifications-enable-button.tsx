@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button'
 import {
   EMAIL_NOTIFICATIONS_BADGE_FADE_MS,
   getRemainingEmailBadgeVisibleMs,
+  isDelegateEmailNotificationsEnabled,
   isEmailNotificationsEnabled,
+  markDelegateEmailNotificationsEnabled,
   markEmailNotificationsEnabled,
   shouldShowEmailNotificationsBadge,
   subscribeEmailNotificationsEnabled,
@@ -17,51 +19,74 @@ type BadgePhase = 'hidden' | 'visible' | 'fading'
 
 export function EmailNotificationsEnableButton({
   userId,
+  variant = 'owner',
+  label,
+  recipientEmail,
+  highlighted = false,
   onNotify,
 }: {
   userId: string | null
+  variant?: 'owner' | 'delegate'
+  label?: string
+  recipientEmail?: string
+  /** Resalta visualmente (sesión delegada). */
+  highlighted?: boolean
   onNotify?: (message: string, durationMs?: number) => void
 }) {
-  const [enabled, setEnabled] = useState(() => isEmailNotificationsEnabled(userId))
+  const isDelegateVariant = variant === 'delegate'
+  const resolvedRecipient = isDelegateVariant ? recipientEmail?.trim() : undefined
+
+  const [enabled, setEnabled] = useState(() =>
+    isDelegateVariant
+      ? isDelegateEmailNotificationsEnabled(userId, resolvedRecipient)
+      : isEmailNotificationsEnabled(userId),
+  )
   const [badgePhase, setBadgePhase] = useState<BadgePhase>(() =>
-    shouldShowEmailNotificationsBadge(userId) ? 'visible' : 'hidden',
+    shouldShowEmailNotificationsBadge(userId, {
+      delegateEmail: isDelegateVariant ? resolvedRecipient : undefined,
+    })
+      ? 'visible'
+      : 'hidden',
   )
   const [loading, setLoading] = useState(false)
 
   const syncEnabled = useCallback(() => {
-    setEnabled(isEmailNotificationsEnabled(userId))
-  }, [userId])
+    setEnabled(
+      isDelegateVariant
+        ? isDelegateEmailNotificationsEnabled(userId, resolvedRecipient)
+        : isEmailNotificationsEnabled(userId),
+    )
+  }, [isDelegateVariant, resolvedRecipient, userId])
 
-  const scheduleBadgeHide = useCallback(
-    (remainingMs: number) => {
-      if (remainingMs <= 0) {
-        setBadgePhase('hidden')
-        return () => {}
-      }
+  const scheduleBadgeHide = useCallback((remainingMs: number) => {
+    if (remainingMs <= 0) {
+      setBadgePhase('hidden')
+      return () => {}
+    }
 
-      setBadgePhase('visible')
-      const fadeStartMs = Math.max(0, remainingMs - EMAIL_NOTIFICATIONS_BADGE_FADE_MS)
+    setBadgePhase('visible')
+    const fadeStartMs = Math.max(0, remainingMs - EMAIL_NOTIFICATIONS_BADGE_FADE_MS)
 
-      const fadeTimer = window.setTimeout(() => {
-        setBadgePhase('fading')
-      }, fadeStartMs)
+    const fadeTimer = window.setTimeout(() => {
+      setBadgePhase('fading')
+    }, fadeStartMs)
 
-      const hideTimer = window.setTimeout(() => {
-        setBadgePhase('hidden')
-      }, remainingMs)
+    const hideTimer = window.setTimeout(() => {
+      setBadgePhase('hidden')
+    }, remainingMs)
 
-      return () => {
-        window.clearTimeout(fadeTimer)
-        window.clearTimeout(hideTimer)
-      }
-    },
-    [],
-  )
+    return () => {
+      window.clearTimeout(fadeTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [])
 
   useEffect(() => {
     syncEnabled()
-    return subscribeEmailNotificationsEnabled(userId, syncEnabled)
-  }, [userId, syncEnabled])
+    return subscribeEmailNotificationsEnabled(userId, syncEnabled, {
+      delegateEmail: isDelegateVariant ? resolvedRecipient : undefined,
+    })
+  }, [userId, syncEnabled, isDelegateVariant, resolvedRecipient])
 
   useEffect(() => {
     if (!userId || !enabled) {
@@ -69,29 +94,35 @@ export function EmailNotificationsEnableButton({
       return
     }
 
-    const remaining = getRemainingEmailBadgeVisibleMs(userId)
+    const remaining = getRemainingEmailBadgeVisibleMs(userId, {
+      delegateEmail: isDelegateVariant ? resolvedRecipient : undefined,
+    })
     if (remaining <= 0) {
       setBadgePhase('hidden')
       return
     }
 
     return scheduleBadgeHide(remaining)
-  }, [userId, enabled, scheduleBadgeHide])
+  }, [userId, enabled, isDelegateVariant, resolvedRecipient, scheduleBadgeHide])
 
   async function handleEnable() {
     if (!userId || loading || enabled) return
+    if (isDelegateVariant && !resolvedRecipient) return
+
     setLoading(true)
     try {
       const res = await fetch('/api/notifications/enable-email-notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isDelegateVariant ? { delegateEmail: resolvedRecipient } : {},
+        ),
       })
       const data = (await res.json()) as {
         ok?: boolean
         sent?: boolean
         to?: string
         error?: string
-        skippedReason?: string
       }
 
       if (!res.ok || !data.sent) {
@@ -102,9 +133,18 @@ export function EmailNotificationsEnableButton({
         return
       }
 
-      markEmailNotificationsEnabled(userId)
+      if (isDelegateVariant && resolvedRecipient) {
+        markDelegateEmailNotificationsEnabled(userId, resolvedRecipient)
+      } else {
+        markEmailNotificationsEnabled(userId)
+      }
+
       setEnabled(true)
-      scheduleBadgeHide(getRemainingEmailBadgeVisibleMs(userId))
+      scheduleBadgeHide(
+        getRemainingEmailBadgeVisibleMs(userId, {
+          delegateEmail: isDelegateVariant ? resolvedRecipient : undefined,
+        }),
+      )
       onNotify?.(
         `Correo enviado a ${data.to ?? 'tu bandeja'}. Revisa tu bandeja de entrada; en Gmail, si no lo ves, busca en Spam y marca «No es spam».`,
         10_000,
@@ -117,15 +157,22 @@ export function EmailNotificationsEnableButton({
   }
 
   if (!userId) return null
+  if (isDelegateVariant && !resolvedRecipient) return null
+
+  const defaultLabel = isDelegateVariant
+    ? 'Habilitar Notificaciones por Correo (delegado)'
+    : 'Habilitar Notificaciones por Correo'
+  const buttonLabel = label ?? defaultLabel
 
   if (enabled && badgePhase !== 'hidden') {
     return (
       <span
         className={cn(
           'inline-flex min-h-11 items-center gap-1.5 overflow-hidden rounded-lg border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-2.5 text-xs font-medium text-primary transition-all ease-out sm:px-3 sm:text-sm',
-          badgePhase === 'visible' && 'opacity-100 translate-y-0',
+          badgePhase === 'visible' && 'translate-y-0 opacity-100',
           badgePhase === 'fading' &&
-            'pointer-events-none opacity-0 -translate-y-0.5 scale-[0.98]',
+            'pointer-events-none -translate-y-0.5 scale-[0.98] opacity-0',
+          highlighted && 'ring-2 ring-primary/30',
         )}
         style={{
           transitionDuration: `${EMAIL_NOTIFICATIONS_BADGE_FADE_MS}ms`,
@@ -150,15 +197,21 @@ export function EmailNotificationsEnableButton({
       onClick={() => void handleEnable()}
       className={cn(
         'min-h-11 max-w-[11rem] gap-1.5 border-primary/30 bg-secondary/40 px-2.5 text-xs font-medium text-primary hover:bg-secondary sm:max-w-none sm:px-3 sm:text-sm',
+        highlighted &&
+          'border-primary bg-primary/10 shadow-sm ring-2 ring-primary/30 hover:bg-primary/15',
       )}
-      title="Enviar correo de confirmación a tu bandeja para mejorar la entrega en Gmail"
+      title={
+        isDelegateVariant
+          ? `Enviar correo de confirmación a ${resolvedRecipient ?? 'tu correo delegado'}`
+          : 'Enviar correo de confirmación a tu bandeja para mejorar la entrega en Gmail'
+      }
     >
       {loading ? (
         <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
       ) : (
         <MailCheck className="size-4 shrink-0" aria-hidden="true" />
       )}
-      <span className="truncate sm:whitespace-normal">Habilitar Notificaciones por Correo</span>
+      <span className="truncate sm:whitespace-normal">{buttonLabel}</span>
     </Button>
   )
 }

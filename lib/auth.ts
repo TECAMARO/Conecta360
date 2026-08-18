@@ -4,6 +4,10 @@ export type AuthSession = {
   email: string
   userId: string
   organization?: string
+  /** Sesión iniciada con credenciales delegadas (mismo userId del titular). */
+  isDelegate?: boolean
+  /** Correo del titular cuando isDelegate es true. */
+  ownerEmail?: string
 }
 
 export function setAuthSession(session: AuthSession) {

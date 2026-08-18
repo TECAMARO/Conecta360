@@ -1,7 +1,7 @@
 'use client'
 
-import { NotificationsDropdown } from '@/components/notifications-dropdown'
 import { EmailNotificationsEnableButton } from '@/components/email-notifications-enable-button'
+import { NotificationsDropdown } from '@/components/notifications-dropdown'
 import { PlatformThemeToggle } from '@/components/platform-theme-toggle'
 import type { Appointment } from '@/lib/data'
 import type { AgendaNotification } from '@/lib/meetings'
@@ -17,6 +17,8 @@ export function PlatformHeader({
   onMarkNotificationRead,
   onMarkAllNotificationsRead,
   userId = null,
+  isDelegateSession = false,
+  delegateEmail = null,
   onNotify,
 }: {
   notifications: AgendaNotification[]
@@ -27,17 +29,35 @@ export function PlatformHeader({
   onMarkNotificationRead: (id: string) => void
   onMarkAllNotificationsRead: () => void
   userId?: string | null
+  isDelegateSession?: boolean
+  delegateEmail?: string | null
   onNotify?: (message: string, durationMs?: number) => void
 }) {
   return (
     <header
       className={cn(
-        'platform-no-print sticky top-0 z-30 mb-4 flex w-full items-center justify-end gap-2 sm:gap-3',
+        'platform-no-print sticky top-0 z-30 mb-4 flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3',
         'border-b border-border bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/90',
         'print:hidden sm:mb-6',
       )}
     >
-      <EmailNotificationsEnableButton userId={userId} onNotify={onNotify} />
+      <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        {isDelegateSession && delegateEmail ? (
+          <EmailNotificationsEnableButton
+            userId={userId}
+            variant="delegate"
+            recipientEmail={delegateEmail}
+            highlighted
+            onNotify={onNotify}
+          />
+        ) : (
+          <EmailNotificationsEnableButton
+            userId={userId}
+            variant="owner"
+            onNotify={onNotify}
+          />
+        )}
+      </div>
       <PlatformThemeToggle
         theme={theme}
         onChange={onThemeChange}

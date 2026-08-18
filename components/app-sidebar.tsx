@@ -19,6 +19,7 @@ import {
   Clock,
   Settings,
   LogOut,
+  KeyRound,
 } from 'lucide-react'
 
 function sidebarSubtitle(profile: UserProfile): string {
@@ -29,15 +30,16 @@ function sidebarSubtitle(profile: UserProfile): string {
   return 'Completa tu perfil'
 }
 
-export type View = 'inicio' | 'explorar' | 'agenda' | 'horarios' | 'perfil' | 'mensajes'
+export type View = 'inicio' | 'explorar' | 'agenda' | 'horarios' | 'perfil' | 'mensajes' | 'accesos'
 
-const nav: { id: View; label: string; icon: typeof Users }[] = [
+const nav: { id: View; label: string; icon: typeof Users; ownerOnly?: boolean }[] = [
   { id: 'inicio', label: 'Inicio', icon: LayoutDashboard },
   { id: 'perfil', label: 'Mi Perfil Estratégico', icon: UserRound },
   { id: 'explorar', label: 'Explorar Participantes', icon: Users },
   { id: 'agenda', label: 'Mi Agenda', icon: CalendarDays },
   { id: 'horarios', label: 'Horarios', icon: Clock },
   { id: 'mensajes', label: 'Mensajes', icon: MessagesSquare },
+  { id: 'accesos', label: 'Accesos', icon: KeyRound, ownerOnly: true },
 ]
 
 export function AppSidebar({
@@ -50,6 +52,7 @@ export function AppSidebar({
   logoVariant = 'primary',
   onLogoToggle,
   drawer = false,
+  hideOwnerSections = false,
 }: {
   active: View
   onNavigate: (view: View) => void
@@ -61,6 +64,8 @@ export function AppSidebar({
   onLogoToggle?: () => void
   /** Mobile overlay drawer — hides duplicate brand (header already shows logo). */
   drawer?: boolean
+  /** Oculta Accesos en sesión delegada. */
+  hideOwnerSections?: boolean
 }) {
   const [profile, setProfile] = useState<UserProfile>(userProfile ?? getProfileOrDefault())
 
@@ -107,7 +112,9 @@ export function AppSidebar({
         className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3"
         aria-label="Navegación principal"
       >
-        {nav.map((item) => {
+        {nav
+          .filter((item) => !(hideOwnerSections && item.ownerOnly))
+          .map((item) => {
           const Icon = item.icon
           const isActive = active === item.id
           const badge =

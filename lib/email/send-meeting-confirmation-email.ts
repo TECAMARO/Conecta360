@@ -25,14 +25,30 @@ function isConfirmedStatus(status: string): boolean {
   return app === 'confirmada'
 }
 
+function uniqueEmails(emails: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of emails) {
+    const email = raw.trim()
+    if (!email) continue
+    const key = email.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(email)
+  }
+  return out
+}
+
 /**
- * Envía correo transaccional al solicitante (Empresa A) y comprobante al confirmante (B).
- * Sin CC (mejor entregabilidad). OTP admin no usa este módulo.
+ * Envía correo transaccional al solicitante (Empresa A) y comprobante al confirmante (B),
+ * incluyendo correos delegados activos de cada parte.
  */
 export async function sendMeetingConfirmationEmail(args: {
   meeting: MeetingRow
   requesterProfile: ProfileRow
   recipientProfile: ProfileRow
+  requesterExtraEmails?: string[]
+  recipientExtraEmails?: string[]
   siteUrl?: string
 }): Promise<SendMeetingConfirmationResult> {
   const { meeting, requesterProfile, recipientProfile } = args
@@ -41,31 +57,46 @@ export async function sendMeetingConfirmationEmail(args: {
     return { sent: false, skippedReason: 'not_confirmed' }
   }
 
-  const requesterEmail = requesterProfile.email?.trim()
-  if (!requesterEmail) {
+  const requesterEmails = uniqueEmails([
+    requesterProfile.email ?? '',
+    ...(args.requesterExtraEmails ?? []),
+  ])
+  const recipientEmails = uniqueEmails([
+    recipientProfile.email ?? '',
+    ...(args.recipientExtraEmails ?? []),
+  ])
+
+  if (requesterEmails.length === 0) {
     return { sent: false, skippedReason: 'missing_requester_email' }
   }
 
-  const recipientEmail = recipientProfile.email?.trim() || undefined
   const siteUrl = args.siteUrl ?? getPublicSiteUrl()
   const subject = buildMeetingConfirmationSubject()
 
-  const parties = [
-    {
-      email: requesterEmail,
+  type Party = {
+    email: string
+    greetingOrg: string
+    counterpartyOrg: string
+  }
+
+  const parties: Party[] = []
+
+  for (const email of requesterEmails) {
+    parties.push({
+      email,
       greetingOrg: displayOrg(requesterProfile),
       counterpartyOrg: displayOrg(recipientProfile),
-    },
-    ...(recipientEmail && recipientEmail.toLowerCase() !== requesterEmail.toLowerCase()
-      ? [
-          {
-            email: recipientEmail,
-            greetingOrg: displayOrg(recipientProfile),
-            counterpartyOrg: displayOrg(requesterProfile),
-          },
-        ]
-      : []),
-  ]
+    })
+  }
+
+  for (const email of recipientEmails) {
+    if (parties.some((p) => p.email.toLowerCase() === email.toLowerCase())) continue
+    parties.push({
+      email,
+      greetingOrg: displayOrg(recipientProfile),
+      counterpartyOrg: displayOrg(requesterProfile),
+    })
+  }
 
   if (!isTransactionalSmtpConfigured()) {
     if (isLocalDevWithoutTransactionalSmtp()) {

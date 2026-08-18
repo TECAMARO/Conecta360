@@ -19,32 +19,65 @@ export type SendMeetingCancellationResult = {
   skippedReason?: string
 }
 
+function uniqueEmails(emails: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of emails) {
+    const email = raw.trim()
+    if (!email) continue
+    const key = email.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(email)
+  }
+  return out
+}
+
 /**
- * Envía correo de cancelación anónima a ambas partes (solicitante y confirmante).
- * Solo aplica tras cancelación administrativa (status cancelada_admin).
+ * Envía correo de cancelación anónima a ambas partes (titular + delegados activos).
  */
 export async function sendMeetingCancellationEmails(args: {
   meeting: MeetingRow
   requesterProfile: ProfileRow
   recipientProfile: ProfileRow
+  requesterExtraEmails?: string[]
+  recipientExtraEmails?: string[]
   siteUrl?: string
 }): Promise<SendMeetingCancellationResult> {
   const { meeting, requesterProfile, recipientProfile } = args
   const siteUrl = args.siteUrl ?? getPublicSiteUrl()
 
-  const parties = [
-    { profile: requesterProfile, counterparty: recipientProfile },
-    { profile: recipientProfile, counterparty: requesterProfile },
-  ]
+  const requesterEmails = uniqueEmails([
+    requesterProfile.email ?? '',
+    ...(args.requesterExtraEmails ?? []),
+  ])
+  const recipientEmails = uniqueEmails([
+    recipientProfile.email ?? '',
+    ...(args.recipientExtraEmails ?? []),
+  ])
+
+  type MailTarget = {
+    email: string
+    profile: ProfileRow
+    counterparty: ProfileRow
+  }
+
+  const targets: MailTarget[] = []
+
+  for (const email of requesterEmails) {
+    targets.push({ email, profile: requesterProfile, counterparty: recipientProfile })
+  }
+  for (const email of recipientEmails) {
+    if (targets.some((t) => t.email.toLowerCase() === email.toLowerCase())) continue
+    targets.push({ email, profile: recipientProfile, counterparty: requesterProfile })
+  }
 
   const recipients: string[] = []
   const subject = buildMeetingCancellationSubject()
 
   if (!isTransactionalSmtpConfigured()) {
     if (isLocalDevWithoutTransactionalSmtp()) {
-      for (const party of parties) {
-        const email = party.profile.email?.trim()
-        if (!email) continue
+      for (const party of targets) {
         const templateData = buildMeetingCancellationTemplateData({
           day: meeting.day,
           slotTime: meeting.slot_time,
@@ -54,10 +87,10 @@ export async function sendMeetingCancellationEmails(args: {
           siteUrl,
         })
         console.warn(
-          `[MEETING CANCEL EMAIL · DEV] Cancelación para ${email} · ` +
+          `[MEETING CANCEL EMAIL · DEV] Cancelación para ${party.email} · ` +
             `${templateData.meetingDateLabel} ${templateData.startTime}–${templateData.endTime} · ${templateData.tableLabel}`,
         )
-        recipients.push(email)
+        recipients.push(party.email)
       }
       if (recipients.length === 0) {
         return { sent: false, recipients: [], skippedReason: 'missing_participant_emails' }
@@ -68,10 +101,7 @@ export async function sendMeetingCancellationEmails(args: {
     return { sent: false, recipients: [], skippedReason: 'smtp_not_configured' }
   }
 
-  for (const party of parties) {
-    const email = party.profile.email?.trim()
-    if (!email) continue
-
+  for (const party of targets) {
     const templateData = buildMeetingCancellationTemplateData({
       day: meeting.day,
       slotTime: meeting.slot_time,
@@ -82,13 +112,13 @@ export async function sendMeetingCancellationEmails(args: {
     })
 
     await sendTransactionalMail({
-      to: email,
+      to: party.email,
       subject,
       text: buildMeetingCancellationText(templateData),
       html: buildMeetingCancellationHtml(templateData),
       entityRef: meeting.id,
     })
-    recipients.push(email)
+    recipients.push(party.email)
   }
 
   if (recipients.length === 0) {

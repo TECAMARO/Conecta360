@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { resolveEmailOrigin } from '@/lib/email/meeting-email-shared'
 import { releaseMeetingConfirmationEmailClaim } from '@/lib/email/release-meeting-email-claim'
 import { sendMeetingConfirmationEmail } from '@/lib/email/send-meeting-confirmation-email'
+import {
+  fetchActiveDelegateEmailsForProfiles,
+  mergeProfileAndDelegateEmails,
+} from '@/lib/delegate-access/delegate-emails'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import type { MeetingRow, ProfileRow } from '@/lib/supabase/database.types'
 
@@ -71,10 +75,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Perfiles de reunión no encontrados.' }, { status: 404 })
     }
 
+    const delegateRows = await fetchActiveDelegateEmailsForProfiles([
+      row.requester_id,
+      row.recipient_id,
+    ])
+
+    const requesterExtra = mergeProfileAndDelegateEmails(
+      requesterProfile.email,
+      delegateRows,
+      row.requester_id,
+    ).filter((e) => e.toLowerCase() !== (requesterProfile.email ?? '').trim().toLowerCase())
+
+    const recipientExtra = mergeProfileAndDelegateEmails(
+      recipientProfile.email,
+      delegateRows,
+      row.recipient_id,
+    ).filter((e) => e.toLowerCase() !== (recipientProfile.email ?? '').trim().toLowerCase())
+
     const result = await sendMeetingConfirmationEmail({
       meeting: row,
       requesterProfile,
       recipientProfile,
+      requesterExtraEmails: requesterExtra,
+      recipientExtraEmails: recipientExtra,
       siteUrl: resolveEmailOrigin(request),
     })
 

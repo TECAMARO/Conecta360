@@ -13,6 +13,7 @@ export type AdminUserMetrics = {
 
 export type AdminProfileRow = ProfileRow & {
   metrics: AdminUserMetrics
+  delegatedAccessEmails?: string[]
 }
 
 export type AdminMeetingRow = MeetingRow & {
@@ -95,20 +96,39 @@ export async function fetchCurrentUserIsAdmin(): Promise<boolean> {
 }
 
 export async function fetchAdminProfilesWithMetrics(): Promise<AdminProfileRow[]> {
-  const [{ data: profiles, error: profilesError }, { data: meetings, error: meetingsError }] =
-    await Promise.all([
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('meetings').select('*'),
-    ])
+  const [
+    { data: profiles, error: profilesError },
+    { data: meetings, error: meetingsError },
+    { data: delegates, error: delegatesError },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+    supabase.from('meetings').select('*'),
+    supabase
+      .from('profile_delegated_access')
+      .select('owner_profile_id, email, is_active')
+      .eq('is_active', true),
+  ])
 
   if (profilesError) throw new Error(profilesError.message)
   if (meetingsError) throw new Error(meetingsError.message)
+  if (delegatesError) throw new Error(delegatesError.message)
 
   const meetingRows = (meetings ?? []) as MeetingRow[]
+
+  const delegateMap = new Map<string, string[]>()
+  for (const row of delegates ?? []) {
+    const ownerId = row.owner_profile_id as string
+    const email = (row.email as string)?.trim()
+    if (!ownerId || !email) continue
+    const list = delegateMap.get(ownerId) ?? []
+    list.push(email)
+    delegateMap.set(ownerId, list)
+  }
 
   return ((profiles ?? []) as ProfileRow[]).map((profile) => ({
     ...profile,
     metrics: computeMetricsForUser(profile.id, meetingRows),
+    delegatedAccessEmails: delegateMap.get(profile.id) ?? [],
   }))
 }
 
