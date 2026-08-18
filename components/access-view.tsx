@@ -25,7 +25,7 @@ const inputClass =
 const ACCESS_INTRO_CURTAIN_FADE_MS = 480
 
 const ACCESS_INTRO_MESSAGE =
-  'Asigna a un delegado para gestionar tu agenda en Conecta360 de forma segura, sin compartir tus claves personales'
+  'Asigna a un delegado para gestionar tu agenda en Conecta360 de forma segura, sin compartir tus claves personales.'
 
 type CurtainPhase = 'visible' | 'fading' | 'hidden'
 
@@ -229,7 +229,7 @@ export function AccessView({
               id="access-intro-curtain-title"
               className="text-base font-bold leading-relaxed text-foreground sm:text-lg"
             >
-              &ldquo;{ACCESS_INTRO_MESSAGE}&rdquo;
+              {ACCESS_INTRO_MESSAGE}
             </p>
             <Button type="button" size="lg" className="min-h-11 px-8" onClick={dismissIntroCurtain}>
               Continuar
