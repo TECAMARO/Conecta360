@@ -403,6 +403,7 @@ export function ProfileView({ theme = 'light' }: { theme?: PlatformTheme }) {
                 theme={theme}
                 value={normalizeProfileSectors(profile.sectors, profile.sector)}
                 hasError={publishMissingFields.includes('sector')}
+                autoCollapseOnInactivity="from-second"
                 onChange={(sectors) => {
                   clearPublishFieldError('sector')
                   const normalized = normalizeProfileSectors(sectors)

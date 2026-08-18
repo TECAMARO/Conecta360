@@ -108,7 +108,12 @@ function RegistroForm() {
           />
         </div>
 
-        <SectorSelect multiple value={sectors} onChange={setSectors} />
+        <SectorSelect
+          multiple
+          value={sectors}
+          onChange={setSectors}
+          autoCollapseOnInactivity="after-first"
+        />
 
         <div className="border-t border-[#dde8d8] pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#5a6b62]">

@@ -10,6 +10,10 @@ import { cn } from '@/lib/utils'
 import { ChevronDown, Search, AlertTriangle, Check, Layers } from 'lucide-react'
 
 const MENU_HEADER_HEIGHT = 76
+const AUTO_COLLAPSE_INACTIVITY_MS = 4000
+const SCROLL_IDLE_MS = 150
+
+export type SectorSelectAutoCollapse = 'after-first' | 'from-second'
 
 export const profileInputClass =
   'w-full rounded-lg border border-[#dde8d8] bg-white px-3.5 py-2.5 text-sm text-[#1a3c34] outline-none transition-colors placeholder:text-[#5a6b62]/60 focus:border-[#8ac441] focus:ring-2 focus:ring-[#8ac441]/25'
@@ -33,6 +37,8 @@ type SectorSelectBase = {
   appearance?: 'auth' | 'platform'
   theme?: PlatformTheme
   maxSelections?: number
+  /** Tras seleccionar, cierra el menú tras 4 s sin scroll ni cambios de selección. */
+  autoCollapseOnInactivity?: SectorSelectAutoCollapse
 }
 
 type SectorSelectSingleProps = SectorSelectBase & {
@@ -60,6 +66,7 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
     theme = 'light',
     maxSelections = MAX_PROFILE_SECTORS,
     multiple = false,
+    autoCollapseOnInactivity,
   } = props
 
   const selected = multiple
@@ -69,6 +76,11 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
       : []
 
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const inactivityTimerRef = useRef<number | null>(null)
+  const scrollIdleTimerRef = useRef<number | null>(null)
+  const isListScrollingRef = useRef(false)
+  const selectionCountRef = useRef(selected.length)
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -78,6 +90,89 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    selectionCountRef.current = selected.length
+  }, [selected.length])
+
+  function clearInactivityCollapseTimer() {
+    if (inactivityTimerRef.current !== null) {
+      window.clearTimeout(inactivityTimerRef.current)
+      inactivityTimerRef.current = null
+    }
+  }
+
+  function clearScrollIdleTimer() {
+    if (scrollIdleTimerRef.current !== null) {
+      window.clearTimeout(scrollIdleTimerRef.current)
+      scrollIdleTimerRef.current = null
+    }
+  }
+
+  function shouldAutoCollapseForCount(count: number): boolean {
+    if (!autoCollapseOnInactivity || !multiple) return false
+    if (autoCollapseOnInactivity === 'after-first') return count >= 1
+    return count >= 2
+  }
+
+  function scheduleInactivityCollapse() {
+    clearInactivityCollapseTimer()
+    if (!open || !shouldAutoCollapseForCount(selectionCountRef.current)) return
+    if (isListScrollingRef.current) return
+
+    inactivityTimerRef.current = window.setTimeout(() => {
+      if (isListScrollingRef.current) return
+      if (!shouldAutoCollapseForCount(selectionCountRef.current)) return
+      setOpenState(false)
+    }, AUTO_COLLAPSE_INACTIVITY_MS)
+  }
+
+  function notifySelectionActivity(nextCount: number) {
+    selectionCountRef.current = nextCount
+    if (!autoCollapseOnInactivity) return
+    clearInactivityCollapseTimer()
+    if (!shouldAutoCollapseForCount(nextCount)) return
+    scheduleInactivityCollapse()
+  }
+
+  function handleListScroll() {
+    if (!autoCollapseOnInactivity) return
+
+    isListScrollingRef.current = true
+    clearInactivityCollapseTimer()
+
+    clearScrollIdleTimer()
+    scrollIdleTimerRef.current = window.setTimeout(() => {
+      isListScrollingRef.current = false
+      scheduleInactivityCollapse()
+    }, SCROLL_IDLE_MS)
+  }
+
+  useEffect(() => {
+    if (!open) {
+      clearInactivityCollapseTimer()
+      clearScrollIdleTimer()
+      isListScrollingRef.current = false
+      return
+    }
+
+    if (!autoCollapseOnInactivity || !menuRect) return
+
+    const listEl = listRef.current
+    if (!listEl) return
+
+    listEl.addEventListener('scroll', handleListScroll, { passive: true })
+    return () => {
+      listEl.removeEventListener('scroll', handleListScroll)
+    }
+  }, [open, autoCollapseOnInactivity, menuRect])
+
+  useEffect(() => {
+    return () => {
+      clearInactivityCollapseTimer()
+      clearScrollIdleTimer()
+    }
   }, [])
 
   useEffect(() => {
@@ -141,7 +236,11 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
 
   function select(sector: string) {
     if (multiple) {
-      props.onChange(toggleProfileSector(selected, sector, { minSelection: required ? 1 : 0 }))
+      const next = toggleProfileSector(selected, sector, {
+        minSelection: open ? 0 : required ? 1 : 0,
+      })
+      props.onChange(next)
+      notifySelectionActivity(next.length)
       return
     }
 
@@ -207,7 +306,13 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
                   <input
                     type="search"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                      setQuery(e.target.value)
+                      if (autoCollapseOnInactivity) {
+                        clearInactivityCollapseTimer()
+                        isListScrollingRef.current = false
+                      }
+                    }}
                     placeholder="Buscar sector…"
                     className={cn(
                       'w-full rounded-lg border py-2 pl-9 pr-3 text-sm outline-none',
@@ -228,6 +333,7 @@ export function SectorSelect(props: SectorSelectSingleProps | SectorSelectMultip
                 </p>
               </div>
               <ul
+                ref={listRef}
                 role="listbox"
                 aria-label="Sectores del evento"
                 aria-multiselectable={multiple || undefined}
