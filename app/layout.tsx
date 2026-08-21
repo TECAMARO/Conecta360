@@ -14,8 +14,8 @@ export const metadata: Metadata = {
     'Plataforma de ruedas de negocios para la Semana Orinoquía Sostenible y Competitiva 2026.',
   generator: 'v0.app',
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: '/360.png',
+    apple: '/360.png',
   },
 }
 
