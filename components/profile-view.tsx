@@ -284,7 +284,14 @@ export function ProfileView({ theme = 'light' }: { theme?: PlatformTheme }) {
           </Button>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            'flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between',
+            profile.isPublished
+              ? 'border-border'
+              : 'profile-publish-card-pulse border-[3px] border-orange-400/40',
+          )}
+        >
           <div>
             <p className="text-sm font-semibold text-foreground">Visibilidad en el directorio</p>
             <p className="mt-1 text-sm text-muted-foreground">

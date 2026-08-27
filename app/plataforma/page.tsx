@@ -102,6 +102,15 @@ const VIEW_PARAM: Record<string, View> = {
   accesos: 'accesos',
 }
 
+/** Hasta la primera publicación, la entrada natural es Mi Perfil (salvo deep links explícitos). */
+function resolvePlatformEntryView(viewParam: string | null, isPublished: boolean): View {
+  const requested = viewParam && VIEW_PARAM[viewParam] ? VIEW_PARAM[viewParam] : null
+  if (!isPublished && (!requested || requested === 'inicio')) {
+    return 'perfil'
+  }
+  return requested ?? 'inicio'
+}
+
 function mergeConversationMessages(
   previous: Conversation[],
   incoming: Conversation[],
@@ -148,7 +157,7 @@ function PlatformApp() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const viewParam = searchParams.get('view')
-  const initialView = (viewParam && VIEW_PARAM[viewParam]) || 'inicio'
+  const initialView = resolvePlatformEntryView(viewParam, false)
 
   const [authReady, setAuthReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
@@ -275,6 +284,13 @@ function PlatformApp() {
         setUserProfileState(profile)
         setUserProfile(profile)
         setUserDisplayName(profile.fullName || profile.organization || session.email)
+
+        const entryView = resolvePlatformEntryView(viewParam, profile.isPublished)
+        setView(entryView)
+        if (entryView === 'perfil' && viewParam !== 'perfil') {
+          router.replace('/plataforma?view=perfil')
+        }
+
         await reloadMeetings(session.userId)
       } catch {
         /* data may be empty on first load */

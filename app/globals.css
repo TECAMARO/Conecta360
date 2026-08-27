@@ -329,10 +329,29 @@ body:has(.platform-shell) {
   animation: landing-hero-register-glow 2.8s ease-in-out infinite;
 }
 
+@keyframes profile-publish-card-pulse-orange {
+  0%,
+  100% {
+    border-color: rgb(251 146 60 / 0.38);
+    box-shadow: 0 0 0 1px rgb(249 115 22 / 0.1);
+  }
+  50% {
+    border-color: rgb(234 88 12 / 1);
+    box-shadow:
+      0 0 0 4px rgb(249 115 22 / 0.24),
+      0 0 16px 4px rgb(249 115 22 / 0.22);
+  }
+}
+
+.profile-publish-card-pulse {
+  animation: profile-publish-card-pulse-orange 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-btn-login-pulse,
   .landing-btn-register-pulse,
-  .landing-hero-register-glow {
+  .landing-hero-register-glow,
+  .profile-publish-card-pulse {
     animation: none;
   }
 }
