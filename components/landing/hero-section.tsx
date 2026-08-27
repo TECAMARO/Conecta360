@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { HeroPillarsCard } from './hero-pillars-card'
 import { EventInfoCard } from './event-info-card'
 
@@ -14,15 +15,21 @@ export function HeroSection() {
 
           <div className="mt-6 max-w-xl space-y-4 text-pretty text-base leading-relaxed text-[#3d5249] sm:text-lg">
             <p>
+              Para comenzar, completa tu proceso de{' '}
+              <Link
+                href="/registro"
+                className="landing-hero-register-glow font-semibold text-[#4a773c] underline decoration-[#8ac441] decoration-2 underline-offset-[3px] transition-colors hover:text-[#1a3c34] hover:decoration-[#4a773c] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ac441]/40"
+              >
+                registro y accede
+              </Link>{' '}
+              a una experiencia diseñada para facilitar conexiones estratégicas, optimizar tu agenda
+              de reuniones y fortalecer la generación de alianzas con propósito.
+            </p>
+            <p>
               Este será el espacio donde empresas, organizaciones, emprendimientos, instituciones e
               inversionistas podrán conectarse, identificar oportunidades y programar reuniones B2B
               durante el evento desde el 21 de septiembre y hasta el 26 de septiembre en horarios
               definidos.
-            </p>
-            <p>
-              Para comenzar, completa tu proceso de registro y accede a una experiencia diseñada
-              para facilitar conexiones estratégicas, optimizar tu agenda de reuniones y fortalecer
-              la generación de alianzas con propósito.
             </p>
           </div>
 

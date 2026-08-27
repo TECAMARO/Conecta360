@@ -276,24 +276,28 @@ body:has(.platform-shell) {
 @keyframes landing-btn-border-pulse-dark {
   0%,
   100% {
-    border-color: rgb(26 60 52 / 0.28);
-    box-shadow: 0 0 0 0 rgb(26 60 52 / 0);
+    border-color: rgb(26 60 52 / 0.35);
+    box-shadow: 0 0 0 1px rgb(26 60 52 / 0.08);
   }
   50% {
-    border-color: rgb(26 60 52 / 0.95);
-    box-shadow: 0 0 0 2px rgb(26 60 52 / 0.12);
+    border-color: rgb(26 60 52 / 1);
+    box-shadow:
+      0 0 0 4px rgb(26 60 52 / 0.22),
+      0 0 14px 3px rgb(26 60 52 / 0.2);
   }
 }
 
 @keyframes landing-btn-border-pulse-light {
   0%,
   100% {
-    border-color: rgb(138 196 65 / 0.35);
-    box-shadow: 0 0 0 0 rgb(138 196 65 / 0);
+    border-color: rgb(138 196 65 / 0.45);
+    box-shadow: 0 0 0 1px rgb(138 196 65 / 0.1);
   }
   50% {
-    border-color: rgb(165 217 106 / 0.95);
-    box-shadow: 0 0 0 2px rgb(138 196 65 / 0.2);
+    border-color: rgb(165 217 106 / 1);
+    box-shadow:
+      0 0 0 4px rgb(138 196 65 / 0.38),
+      0 0 16px 4px rgb(138 196 65 / 0.32);
   }
 }
 
@@ -305,9 +309,30 @@ body:has(.platform-shell) {
   animation: landing-btn-border-pulse-light 2.8s ease-in-out infinite;
 }
 
+@keyframes landing-hero-register-glow {
+  0%,
+  100% {
+    color: rgb(74 119 60);
+    text-decoration-color: rgb(138 196 65 / 0.4);
+    text-shadow: 0 0 0 rgb(138 196 65 / 0);
+  }
+  50% {
+    color: rgb(26 60 52);
+    text-decoration-color: rgb(138 196 65 / 1);
+    text-shadow:
+      0 0 6px rgb(138 196 65 / 0.5),
+      0 0 14px rgb(138 196 65 / 0.25);
+  }
+}
+
+.landing-hero-register-glow {
+  animation: landing-hero-register-glow 2.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-btn-login-pulse,
-  .landing-btn-register-pulse {
+  .landing-btn-register-pulse,
+  .landing-hero-register-glow {
     animation: none;
   }
 }
