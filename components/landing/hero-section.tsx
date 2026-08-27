@@ -1,7 +1,3 @@
-import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { HeroPillarsCard } from './hero-pillars-card'
 import { EventInfoCard } from './event-info-card'
 
@@ -35,19 +31,6 @@ export function HeroSection() {
             construyas relaciones que impulsen nuevos proyectos, negocios e iniciativas
             sostenibles.»
           </p>
-
-          <div className="mt-8">
-            <Link
-              href="/participantes"
-              className={cn(
-                buttonVariants({ size: 'lg' }),
-                'h-11 bg-[#1a3c34] px-6 text-white hover:bg-[#234a40]',
-              )}
-            >
-              Explorar participantes
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
         </div>
 
         {/* Right — Pillars card */}

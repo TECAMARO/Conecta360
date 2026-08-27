@@ -273,6 +273,45 @@ body:has(.platform-shell) {
   color: var(--foreground);
 }
 
+@keyframes landing-btn-border-pulse-dark {
+  0%,
+  100% {
+    border-color: rgb(26 60 52 / 0.28);
+    box-shadow: 0 0 0 0 rgb(26 60 52 / 0);
+  }
+  50% {
+    border-color: rgb(26 60 52 / 0.95);
+    box-shadow: 0 0 0 2px rgb(26 60 52 / 0.12);
+  }
+}
+
+@keyframes landing-btn-border-pulse-light {
+  0%,
+  100% {
+    border-color: rgb(138 196 65 / 0.35);
+    box-shadow: 0 0 0 0 rgb(138 196 65 / 0);
+  }
+  50% {
+    border-color: rgb(165 217 106 / 0.95);
+    box-shadow: 0 0 0 2px rgb(138 196 65 / 0.2);
+  }
+}
+
+.landing-btn-login-pulse {
+  animation: landing-btn-border-pulse-dark 2.8s ease-in-out infinite;
+}
+
+.landing-btn-register-pulse {
+  animation: landing-btn-border-pulse-light 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-btn-login-pulse,
+  .landing-btn-register-pulse {
+    animation: none;
+  }
+}
+
 @media print {
   @page {
     size: A4;
