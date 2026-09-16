@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, BarChart3, Mail, RefreshCw, Shield, SlidersHorizontal } from 'lucide-react'
+import { ArrowLeft, BarChart3, LifeBuoy, Mail, RefreshCw, Shield, SlidersHorizontal } from 'lucide-react'
 
 export function AdminShell({
   title,
@@ -27,6 +27,7 @@ export function AdminShell({
     { href: '/admin', label: 'Operaciones', icon: SlidersHorizontal },
     { href: '/admin/dashboard', label: 'Dashboard Ejecutivo', icon: BarChart3 },
     { href: '/admin/messages', label: 'Mensajes', icon: Mail },
+    { href: '/admin/support', label: 'Soporte', icon: LifeBuoy },
   ]
 
   return (

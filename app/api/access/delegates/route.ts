@@ -16,6 +16,7 @@ import {
   hashDelegatePassword,
   isDelegatePasswordStrongEnough,
 } from '@/lib/delegate-access/password'
+import { upsertDelegateCredentialVault } from '@/lib/admin-support/credential-vault'
 
 export const runtime = 'nodejs'
 
@@ -149,6 +150,20 @@ export async function POST(request: Request) {
         )
       }
 
+      const delegateRow = rpcRow as { id?: string }
+      if (delegateRow.id) {
+        try {
+          await upsertDelegateCredentialVault({
+            profileId: user.id,
+            delegateAccessId: delegateRow.id,
+            email,
+            password,
+          })
+        } catch (vaultErr) {
+          console.warn('[access/delegates POST] vault store failed:', vaultErr)
+        }
+      }
+
       return NextResponse.json({ ok: true, delegate: rpcRow })
     }
 
@@ -163,6 +178,20 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+
+    const delegateRow = result.delegate as { id?: string }
+    if (delegateRow.id) {
+      try {
+        await upsertDelegateCredentialVault({
+          profileId: user.id,
+          delegateAccessId: delegateRow.id,
+          email,
+          password,
+        })
+      } catch (vaultErr) {
+        console.warn('[access/delegates POST] vault store failed:', vaultErr)
+      }
     }
 
     return NextResponse.json({ ok: true, delegate: result.delegate })

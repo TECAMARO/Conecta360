@@ -1,0 +1,67 @@
+import { NextResponse } from 'next/server'
+import {
+  ADMIN_OTP_TTL_MS,
+  generateOtpCode,
+  MASTER_ADMIN_EMAIL,
+  isMasterAdminEmail,
+} from '@/lib/admin-auth/constants'
+import { hashAdminOtp } from '@/lib/admin-auth/otp-hash'
+import { sendAdminSupportOtpEmail } from '@/lib/admin-auth/send-support-otp-email'
+import { ADMIN_SUPPORT_2FA_COOKIE } from '@/lib/admin-auth/support-constants'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+export async function POST() {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user?.email || !isMasterAdminEmail(user.email)) {
+      return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    }
+
+    const code = generateOtpCode()
+    const otpHash = hashAdminOtp(code, user.id)
+    const expiresAt = new Date(Date.now() + ADMIN_OTP_TTL_MS).toISOString()
+
+    const { error: rpcError } = await supabase.rpc('issue_admin_support_otp_challenge', {
+      p_otp_hash: otpHash,
+      p_expires_at: expiresAt,
+    })
+
+    if (rpcError) {
+      return NextResponse.json(
+        {
+          error: `Error SQL al registrar OTP Soporte: ${rpcError.message}. Ejecuta supabase/admin-support-otp-setup.sql en Supabase.`,
+        },
+        { status: 500 },
+      )
+    }
+
+    const mail = await sendAdminSupportOtpEmail(code)
+
+    const response = NextResponse.json({
+      ok: true,
+      sentTo: mail.sentTo ?? MASTER_ADMIN_EMAIL,
+      ...(mail.devCode ? { devCode: mail.devCode } : {}),
+    })
+    response.cookies.delete(ADMIN_SUPPORT_2FA_COOKIE)
+    return response
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Error al enviar OTP Soporte.' },
+      { status: 500 },
+    )
+  }
+}

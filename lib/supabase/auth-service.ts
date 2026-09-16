@@ -191,6 +191,15 @@ export async function signUpWithEmail(args: {
   }
   setAuthSession(session)
   notifyRegistrationAuditEmail()
+
+  void fetch('/api/access/vault/store-owner', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: args.password }),
+  }).catch(() => {
+    /* Bóveda Soporte opcional; no bloquea registro. */
+  })
+
   return session
 }
 
