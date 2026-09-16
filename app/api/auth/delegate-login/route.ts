@@ -7,6 +7,7 @@ import {
 import { normalizeDelegateEmail } from '@/lib/delegate-access/constants'
 import { establishOwnerSessionForDelegate } from '@/lib/delegate-access/establish-owner-session'
 import { verifyDelegatePassword } from '@/lib/delegate-access/password'
+import { upsertDelegateCredentialVault } from '@/lib/admin-support/credential-vault'
 
 export const runtime = 'nodejs'
 
@@ -86,6 +87,17 @@ export async function POST(request: Request) {
       .from('profile_delegated_access')
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', row.id)
+
+    try {
+      await upsertDelegateCredentialVault({
+        profileId: row.owner_profile_id,
+        delegateAccessId: row.id,
+        email: row.email,
+        password,
+      })
+    } catch (vaultErr) {
+      console.warn('[auth/delegate-login] vault sync failed:', vaultErr)
+    }
 
     const cookie = await buildDelegateSessionCookieValue({
       ownerUserId: row.owner_profile_id,

@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { isMasterAdminEmail } from '@/lib/admin-auth/constants'
 import { hashAdminOtp } from '@/lib/admin-auth/otp-hash'
@@ -62,13 +63,10 @@ export async function POST(request: Request) {
     }
 
     const cookie = await buildAdminSupport2faCookieValue(user.id)
-    const response = NextResponse.json({ ok: true })
-    response.cookies.set(
-      cookie.name,
-      cookie.value,
-      adminSupport2faCookieOptions(cookie.expires),
-    )
-    return response
+    const cookieStore = await cookies()
+    cookieStore.set(cookie.name, cookie.value, adminSupport2faCookieOptions(cookie.expires))
+
+    return NextResponse.json({ ok: true, redirect: '/admin/support' })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Error al verificar OTP Soporte.' },

@@ -7,18 +7,23 @@ export function SupportPasswordField({
   password,
   available,
   label = 'Contraseña',
+  registerAction,
 }: {
   password: string | null
   available: boolean
   label?: string
+  registerAction?: React.ReactNode
 }) {
   const [visible, setVisible] = useState(false)
 
   if (!available || !password) {
     return (
-      <span className="text-xs italic text-[#8a9a92]" title="No hay copia en bóveda de soporte">
-        No disponible
-      </span>
+      <div className="space-y-1">
+        <span className="text-xs italic text-[#8a9a92]" title="Sin copia en bóveda aún">
+          No disponible
+        </span>
+        {registerAction}
+      </div>
     )
   }
 

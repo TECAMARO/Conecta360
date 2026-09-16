@@ -35,8 +35,9 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isAdminRoute = pathname.startsWith('/admin')
   const isSupportRoute = pathname.startsWith('/admin/support')
-  const isVerifyAdminRoute = pathname.startsWith('/login/verify-admin')
   const isVerifySupportRoute = pathname.startsWith('/login/verify-admin-support')
+  const isVerifyAdminRoute =
+    pathname.startsWith('/login/verify-admin') && !isVerifySupportRoute
 
   if (!isAdminRoute && !isVerifyAdminRoute && !isVerifySupportRoute) {
     return supabaseResponse

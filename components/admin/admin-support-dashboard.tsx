@@ -5,6 +5,8 @@ import type { SupportUserCredential } from '@/lib/admin-support/fetch-support-cr
 import { fetchCurrentUserIsAdmin } from '@/lib/supabase/admin-repository'
 import { AdminShell } from '@/components/admin/admin-shell'
 import { SupportPasswordField } from '@/components/admin/support-password-field'
+import { SupportRegisterPasswordButton } from '@/components/admin/support-register-password-button'
+import { SupportSendResetButton } from '@/components/admin/support-send-reset-button'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Building2, Loader2, RefreshCw, Search, ShieldAlert, UserRound } from 'lucide-react'
@@ -16,6 +18,7 @@ export function AdminSupportDashboard() {
   const [users, setUsers] = useState<SupportUserCredential[]>([])
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const loadCredentials = useCallback(async () => {
     setError(null)
@@ -105,9 +108,9 @@ export function AdminSupportDashboard() {
         <div className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>
-            Las contraseñas solo aparecen si fueron registradas en la bóveda cifrada al crear la
-            cuenta o un acceso delegado. Cuentas anteriores pueden mostrar{' '}
-            <strong>No disponible</strong>.
+            Supabase guarda contraseñas con hash irreversible: <strong>no se pueden extraer</strong>{' '}
+            de la base de datos. La bóveda se llena al registrarse, al iniciar sesión, o si registras
+            manualmente una contraseña conocida con el botón <strong>Registrar contraseña</strong>.
           </p>
         </div>
       </div>
@@ -115,6 +118,12 @@ export function AdminSupportDashboard() {
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
+        </p>
+      )}
+
+      {notice && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {notice}
         </p>
       )}
 
@@ -185,7 +194,26 @@ export function AdminSupportDashboard() {
                       password={user.ownerPassword}
                       available={user.ownerPasswordAvailable}
                       label="contraseña titular"
+                      registerAction={
+                        !user.ownerPasswordAvailable ? (
+                          <SupportRegisterPasswordButton
+                            profileId={user.profileId}
+                            credentialKind="owner"
+                            onSaved={() => void handleRefresh()}
+                          />
+                        ) : null
+                      }
                     />
+                    {user.email && (
+                      <SupportSendResetButton
+                        profileId={user.profileId}
+                        credentialKind="owner"
+                        onSent={(message) => {
+                          setNotice(message)
+                          void handleRefresh()
+                        }}
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-4">
                     {user.delegates.length === 0 ? (
@@ -203,6 +231,25 @@ export function AdminSupportDashboard() {
                                 password={delegate.password}
                                 available={delegate.passwordAvailable}
                                 label="contraseña delegada"
+                                registerAction={
+                                  !delegate.passwordAvailable ? (
+                                    <SupportRegisterPasswordButton
+                                      profileId={user.profileId}
+                                      credentialKind="delegate"
+                                      delegateAccessId={delegate.id}
+                                      onSaved={() => void handleRefresh()}
+                                    />
+                                  ) : null
+                                }
+                              />
+                              <SupportSendResetButton
+                                profileId={user.profileId}
+                                credentialKind="delegate"
+                                delegateAccessId={delegate.id}
+                                onSent={(message) => {
+                                  setNotice(message)
+                                  void handleRefresh()
+                                }}
                               />
                             </div>
                           </li>

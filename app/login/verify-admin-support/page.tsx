@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { MASTER_ADMIN_EMAIL } from '@/lib/admin-auth/constants'
 import { AuthShell } from '@/components/auth/auth-shell'
@@ -13,7 +13,6 @@ const inputClass =
   'w-full rounded-lg border border-[#dde8d8] bg-white px-3.5 py-2.5 text-center text-2xl font-semibold tracking-[0.5em] text-[#1a3c34] outline-none transition-colors focus:border-[#8ac441] focus:ring-2 focus:ring-[#8ac441]/25'
 
 function VerifyAdminSupportForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/admin/support'
   const [code, setCode] = useState('')
@@ -58,11 +57,12 @@ function VerifyAdminSupportForm() {
     try {
       const res = await fetch('/api/auth/admin-support-otp/verify', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       })
 
-      const data = (await res.json()) as { error?: string }
+      const data = (await res.json()) as { error?: string; redirect?: string }
 
       if (!res.ok) {
         setError(data.error ?? 'Código inválido.')
@@ -71,7 +71,10 @@ function VerifyAdminSupportForm() {
         return
       }
 
-      router.push(redirectTo.startsWith('/admin/support') ? redirectTo : '/admin/support')
+      const target = redirectTo.startsWith('/admin/support')
+        ? redirectTo
+        : data.redirect ?? '/admin/support'
+      window.location.assign(target)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error de verificación.')
     } finally {

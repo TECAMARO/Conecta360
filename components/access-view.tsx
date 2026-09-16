@@ -9,7 +9,7 @@ import {
   DELEGATE_EMAIL_UNAVAILABLE_MESSAGE,
 } from '@/lib/delegate-access/constants'
 import { cn } from '@/lib/utils'
-import { CircleCheck, KeyRound, Loader2, Mail, ShieldCheck, Trash2 } from 'lucide-react'
+import { CircleCheck, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Trash2 } from 'lucide-react'
 
 type DelegateRow = {
   id: string
@@ -17,6 +17,14 @@ type DelegateRow = {
   is_active: boolean
   created_at: string
   last_used_at: string | null
+}
+
+type DelegateResetNotice = {
+  id: string
+  delegateAccessId: string
+  delegateEmail: string
+  password: string | null
+  createdAt: string
 }
 
 const inputClass =
@@ -46,6 +54,8 @@ export function AccessView({
   const [submitting, setSubmitting] = useState(false)
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [curtainPhase, setCurtainPhase] = useState<CurtainPhase>('visible')
+  const [resetNotices, setResetNotices] = useState<DelegateResetNotice[]>([])
+  const [visibleNoticePasswords, setVisibleNoticePasswords] = useState<Record<string, boolean>>({})
 
   const activeDelegates = delegates.filter((row) => row.is_active)
   const hasActiveDelegates = activeDelegates.length > 0
@@ -81,9 +91,37 @@ export function AccessView({
     }
   }, [onNotify])
 
+  const loadResetNotices = useCallback(async () => {
+    try {
+      const res = await fetch('/api/access/delegate-reset-notices')
+      const data = (await res.json()) as { notices?: DelegateResetNotice[] }
+      if (res.ok) {
+        setResetNotices(data.notices ?? [])
+      }
+    } catch {
+      /* Tabla SQL puede no existir aún en algunos entornos. */
+    }
+  }, [])
+
   useEffect(() => {
     void loadDelegates()
-  }, [loadDelegates])
+    void loadResetNotices()
+  }, [loadDelegates, loadResetNotices])
+
+  async function dismissResetNotice(noticeId: string) {
+    try {
+      const res = await fetch('/api/access/delegate-reset-notices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noticeId }),
+      })
+      if (res.ok) {
+        setResetNotices((prev) => prev.filter((notice) => notice.id !== noticeId))
+      }
+    } catch {
+      onNotify?.('No se pudo descartar el aviso.', 'warning')
+    }
+  }
 
   async function handleVerifyEmail() {
     const trimmed = email.trim()
@@ -262,6 +300,72 @@ export function AccessView({
           inicio de sesión habitual no cambia.
         </p>
       </header>
+
+      {resetNotices.length > 0 && (
+        <section className="space-y-3 rounded-2xl border border-amber-300/50 bg-amber-50/80 p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-foreground">Contraseñas delegadas restablecidas</h2>
+          <p className="text-sm text-muted-foreground">
+            Copia segura para compartir con tu delegado. También enviamos esta información a tu correo
+            titular.
+          </p>
+          <ul className="space-y-3">
+            {resetNotices.map((notice) => {
+              const visible = visibleNoticePasswords[notice.id] ?? true
+              return (
+                <li
+                  key={notice.id}
+                  className="rounded-xl border border-border/80 bg-background px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{notice.delegateEmail}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Restablecida: {formatDate(notice.createdAt)}
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="font-mono text-sm text-foreground">
+                          {notice.password
+                            ? visible
+                              ? notice.password
+                              : '••••••••'
+                            : 'No disponible'}
+                        </span>
+                        {notice.password && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVisibleNoticePasswords((prev) => ({
+                                ...prev,
+                                [notice.id]: !visible,
+                              }))
+                            }
+                            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                          >
+                            {visible ? (
+                              <EyeOff className="size-4" aria-hidden="true" />
+                            ) : (
+                              <Eye className="size-4" aria-hidden="true" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void dismissResetNotice(notice.id)}
+                    >
+                      Entendido
+                    </Button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-foreground">

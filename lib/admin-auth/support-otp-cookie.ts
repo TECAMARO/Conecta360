@@ -20,14 +20,15 @@ async function hmacHex(message: string): Promise<string> {
     .join('')
 }
 
+/** Mismo formato que admin 2FA (userId:exp:sig); HMAC distinto para no reutilizar cookies. */
 export async function buildAdminSupport2faCookieValue(userId: string): Promise<{
   name: string
   value: string
   expires: Date
 }> {
   const exp = Date.now() + ADMIN_SUPPORT_2FA_TTL_MS
-  const payload = `support:${userId}:${exp}`
-  const sig = await hmacHex(payload)
+  const payload = `${userId}:${exp}`
+  const sig = await hmacHex(`support:${payload}`)
   return {
     name: ADMIN_SUPPORT_2FA_COOKIE,
     value: `${payload}:${sig}`,
@@ -35,6 +36,7 @@ export async function buildAdminSupport2faCookieValue(userId: string): Promise<{
   }
 }
 
+/** Valida cookie 2FA Soporte (Edge-compatible). */
 export async function isValidAdminSupport2faCookie(
   cookieValue: string | undefined,
   userId: string,
@@ -42,11 +44,9 @@ export async function isValidAdminSupport2faCookie(
   if (!cookieValue) return false
 
   const parts = cookieValue.split(':')
-  if (parts.length !== 4 || parts[0] !== 'support') return false
+  if (parts.length !== 3) return false
 
-  const uid = parts[1]
-  const expStr = parts[2]
-  const sig = parts[3]
+  const [uid, expStr, sig] = parts
   if (!uid || !expStr || !sig) return false
   if (uid !== userId) return false
 

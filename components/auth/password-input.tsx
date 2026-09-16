@@ -20,6 +20,7 @@ export function PasswordInput({
   required = true,
   className,
   tone = 'auth',
+  defaultVisible = false,
 }: {
   id: string
   value: string
@@ -31,8 +32,10 @@ export function PasswordInput({
   className?: string
   /** `auth` = login/registro (fondo claro fijo). `platform` = plataforma con dark mode. */
   tone?: 'auth' | 'platform'
+  /** Mostrar texto en claro al cargar (p. ej. restablecer contraseña). */
+  defaultVisible?: boolean
 }) {
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(defaultVisible)
   const inputClass = tone === 'platform' ? platformPasswordInputClass : authPasswordInputClass
 
   return (

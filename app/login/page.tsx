@@ -104,7 +104,16 @@ function LoginForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-[#5a6b62]">
+      <p className="mt-4 text-center text-sm">
+        <Link
+          href="/login/restablecer-contrasena"
+          className="font-medium text-[#1a3c34] underline-offset-4 hover:text-[#8ac441] hover:underline"
+        >
+          Restablecer contraseña
+        </Link>
+      </p>
+
+      <p className="mt-4 text-center text-sm text-[#5a6b62]">
         ¿No tienes cuenta?{' '}
         <Link
           href={`/registro?redirect=${encodeURIComponent(redirectTo)}`}
