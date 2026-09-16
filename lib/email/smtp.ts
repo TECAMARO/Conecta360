@@ -17,6 +17,14 @@ export function isTransactionalSmtpConfigured(): boolean {
   )
 }
 
+/**
+ * Mensajes del panel Admin → Mensajes.
+ * Usa la misma cuenta de notificaciones (SMTP_TRANSACTIONAL_* → conecta360.notificaciones@gmail.com).
+ */
+export function isAdminBroadcastSmtpConfigured(): boolean {
+  return isTransactionalSmtpConfigured()
+}
+
 export function getSmtpFromAddress(fallbackEmail: string): string {
   return env('SMTP_FROM') || env('SMTP_USER') || `Conecta360 <${fallbackEmail}>`
 }
@@ -48,6 +56,60 @@ export function getTransactionalReplyTo(): string | undefined {
   return env('SMTP_REPLY_TO') || env('SMTP_TRANSACTIONAL_USER') || undefined
 }
 
+export function getAdminBroadcastFromAddress(): string | { name: string; address: string } {
+  return getTransactionalFromAddress()
+}
+
+export function getAdminBroadcastReplyTo(): string | undefined {
+  return getTransactionalReplyTo()
+}
+
+const DEFAULT_ADMIN_BROADCAST_BCC = 'direccion@amaro.agency'
+
+function normalizeEmailAddress(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+/** Dirección autenticada en SMTP transaccional (MAIL FROM). */
+export function getTransactionalSmtpUser(): string {
+  const user = env('SMTP_TRANSACTIONAL_USER')
+  if (!user) {
+    throw new Error('SMTP transaccional sin SMTP_TRANSACTIONAL_USER.')
+  }
+  return normalizeEmailAddress(user)
+}
+
+export function parseEmailAddressList(raw: string | undefined): string[] {
+  if (!raw?.trim()) return []
+
+  const seen = new Set<string>()
+  const addresses: string[] = []
+
+  for (const part of raw.split(/[,;]+/)) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+
+    const match = trimmed.match(/<([^>]+)>/)
+    const email = normalizeEmailAddress(match?.[1] ?? trimmed)
+    if (!email.includes('@') || seen.has(email)) continue
+
+    seen.add(email)
+    addresses.push(email)
+  }
+
+  return addresses
+}
+
+export function getAdminBroadcastBccList(): string[] {
+  const configured = parseEmailAddressList(env('ADMIN_BROADCAST_BCC'))
+  if (configured.length > 0) return configured
+  return [DEFAULT_ADMIN_BROADCAST_BCC]
+}
+
+export function getAdminBroadcastBcc(): string {
+  return getAdminBroadcastBccList()[0] ?? DEFAULT_ADMIN_BROADCAST_BCC
+}
+
 /** Transporte OTP admin — solo SMTP_*. */
 export function createSmtpTransport() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -69,6 +131,11 @@ export function createSmtpTransport() {
     requireTLS: port === 587,
     auth: { user, pass },
   })
+}
+
+/** Transporte mensajes admin — misma cuenta SMTP_TRANSACTIONAL_* (notificaciones). */
+export function createAdminBroadcastSmtpTransport() {
+  return createTransactionalSmtpTransport()
 }
 
 /** Transporte reuniones — exclusivamente SMTP_TRANSACTIONAL_*. */
