@@ -9,7 +9,8 @@ import {
 import { verifyAdminApiRequest } from '@/lib/admin/verify-admin-api'
 import { buildAdminBroadcastHtml } from '@/lib/email/admin-broadcast-template'
 import { sendAdminBroadcastMail } from '@/lib/email/send-admin-broadcast-mail'
-import { isAdminBroadcastSmtpConfigured, getPublicSiteUrl } from '@/lib/email/smtp'
+import { getEmailSiteUrl } from '@/lib/email/site-url'
+import { isAdminBroadcastSmtpConfigured } from '@/lib/email/smtp'
 import { createServiceRoleSupabaseClient } from '@/lib/supabase/service-role'
 
 export const runtime = 'nodejs'
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const platformUrl = getPublicSiteUrl()
+  const platformUrl = getEmailSiteUrl(request)
   const sent: string[] = []
   const failed: { key: string; email: string; error: string }[] = []
 

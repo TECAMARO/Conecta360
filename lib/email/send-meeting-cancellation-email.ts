@@ -7,7 +7,7 @@ import {
 import { displayOrg } from '@/lib/email/meeting-email-shared'
 import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
 import {
-  getPublicSiteUrl,
+  getPublicSiteUrlForEmail,
   isLocalDevWithoutTransactionalSmtp,
   isTransactionalSmtpConfigured,
 } from '@/lib/email/smtp'
@@ -45,7 +45,7 @@ export async function sendMeetingCancellationEmails(args: {
   siteUrl?: string
 }): Promise<SendMeetingCancellationResult> {
   const { meeting, requesterProfile, recipientProfile } = args
-  const siteUrl = args.siteUrl ?? getPublicSiteUrl()
+  const siteUrl = args.siteUrl ?? getPublicSiteUrlForEmail()
 
   const requesterEmails = uniqueEmails([
     requesterProfile.email ?? '',

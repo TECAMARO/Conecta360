@@ -5,7 +5,7 @@ import {
 } from '@/lib/email/email-notifications-enable-template'
 import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
 import {
-  getPublicSiteUrl,
+  getPublicSiteUrlForEmail,
   isLocalDevWithoutTransactionalSmtp,
   isTransactionalSmtpConfigured,
 } from '@/lib/email/smtp'
@@ -26,7 +26,7 @@ export async function sendEmailNotificationsEnableEmail(args: {
     return { sent: false, skippedReason: 'missing_recipient_email' }
   }
 
-  const siteUrl = args.siteUrl ?? getPublicSiteUrl()
+  const siteUrl = args.siteUrl ?? getPublicSiteUrlForEmail()
   const platformUrl = `${siteUrl.replace(/\/$/, '')}/plataforma?view=agenda`
   const templateData = {
     recipientName: args.recipientName.trim() || 'Participante',

@@ -4,7 +4,8 @@ import {
   buildPasswordResetText,
 } from '@/lib/email/password-reset-template'
 import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
-import { getPublicSiteUrl, isTransactionalSmtpConfigured } from '@/lib/email/smtp'
+import { getEmailSiteUrl } from '@/lib/email/site-url'
+import { isTransactionalSmtpConfigured } from '@/lib/email/smtp'
 import { normalizeDelegateEmail } from '@/lib/delegate-access/constants'
 import { createServiceRoleSupabaseClient } from '@/lib/supabase/service-role'
 
@@ -20,7 +21,7 @@ export async function sendTitularPasswordResetEmail(args: {
     throw new Error('SMTP transaccional no configurado para enviar restablecimiento.')
   }
 
-  const siteUrl = (args.siteUrl ?? getPublicSiteUrl()).replace(/\/$/, '')
+  const siteUrl = (args.siteUrl ?? getEmailSiteUrl()).replace(/\/$/, '')
   const redirectTo = `${siteUrl}/login/nueva-contrasena`
   const service = createServiceRoleSupabaseClient()
 

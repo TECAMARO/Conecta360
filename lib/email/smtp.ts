@@ -1,3 +1,5 @@
+import { getEmailSiteUrl } from '@/lib/email/site-url'
+
 function env(name: string): string | undefined {
   const value = process.env[name]?.trim()
   return value ? value : undefined
@@ -171,6 +173,20 @@ export function isLocalDevWithoutTransactionalSmtp(): boolean {
   return process.env.NODE_ENV !== 'production' && !isTransactionalSmtpConfigured()
 }
 
+/** Enlaces en UI; para correos usar getEmailSiteUrl(). */
 export function getPublicSiteUrl(fallback = 'http://localhost:3000'): string {
-  return env('NEXT_PUBLIC_SITE_URL')?.replace(/\/$/, '') || fallback
+  const fromEnv = env('NEXT_PUBLIC_SITE_URL')?.replace(/\/$/, '')
+  if (fromEnv) return fromEnv
+
+  const vercelHost = env('VERCEL_URL')
+  if (vercelHost && !vercelHost.includes('localhost')) {
+    return `https://${vercelHost.replace(/\/$/, '')}`
+  }
+
+  return fallback
+}
+
+/** @deprecated Prefer getEmailSiteUrl — mantiene compatibilidad en plantillas de correo. */
+export function getPublicSiteUrlForEmail(request?: Request): string {
+  return getEmailSiteUrl(request)
 }

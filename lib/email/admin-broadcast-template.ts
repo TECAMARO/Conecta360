@@ -1,5 +1,5 @@
 import { escapeHtml } from '@/lib/email/meeting-email-shared'
-import { getPublicSiteUrl } from '@/lib/email/smtp'
+import { getEmailSiteUrl } from '@/lib/email/site-url'
 import { getTransactionalLogoAttachment, transactionalLogoImgHtml } from '@/lib/email/send-transactional-mail'
 
 export { getTransactionalLogoAttachment as getAdminBroadcastLogoAttachment }
@@ -50,7 +50,7 @@ export function buildAdminBroadcastHtml(args: {
   platformUrl?: string
   auditRecipientEmail?: string
 }): string {
-  const platformUrl = args.platformUrl ?? `${getPublicSiteUrl()}/plataforma`
+  const platformUrl = args.platformUrl ?? `${getEmailSiteUrl()}/plataforma`
   const bodyHtml = plainTextBlockToHtml(args.bodyText)
   const auditBanner = args.auditRecipientEmail
     ? buildAdminBroadcastAuditBannerHtml(args.auditRecipientEmail)

@@ -4,7 +4,8 @@ import {
   buildDelegatePasswordResetOwnerText,
 } from '@/lib/email/delegate-password-reset-template'
 import { sendTransactionalMail } from '@/lib/email/send-transactional-mail'
-import { getPublicSiteUrl, isTransactionalSmtpConfigured } from '@/lib/email/smtp'
+import { getEmailSiteUrl } from '@/lib/email/site-url'
+import { isTransactionalSmtpConfigured } from '@/lib/email/smtp'
 import { encryptSupportPassword } from '@/lib/admin-support/credential-vault'
 import { upsertDelegateCredentialVault } from '@/lib/admin-support/credential-vault'
 import { hashDelegatePassword } from '@/lib/delegate-access/password'
@@ -85,7 +86,7 @@ export async function resetDelegatePasswordAccess(args: {
     console.warn('[reset-delegate-password] notice insert failed:', noticeError.message)
   }
 
-  const siteUrl = (args.siteUrl ?? getPublicSiteUrl()).replace(/\/$/, '')
+  const siteUrl = (args.siteUrl ?? getEmailSiteUrl()).replace(/\/$/, '')
   const platformUrl = `${siteUrl}/plataforma?view=access`
   const ownerName =
     ownerProfile.organization_name?.trim() ||

@@ -19,6 +19,13 @@ export type SupportUserCredential = {
   ownerPassword: string | null
   ownerPasswordAvailable: boolean
   delegates: SupportDelegateCredential[]
+  /** Cuenta admin maestro — no cuenta como participante en la plataforma. */
+  isAdmin: boolean
+}
+
+export type SupportCredentialsBundle = {
+  admins: SupportUserCredential[]
+  participants: SupportUserCredential[]
 }
 
 type VaultRow = {
@@ -44,7 +51,50 @@ function tryDecrypt(row: VaultRow): string | null {
   }
 }
 
-export async function fetchSupportCredentialsForAdmin(): Promise<SupportUserCredential[]> {
+function mapProfileToSupportCredential(
+  profile: {
+    id: string
+    full_name: string | null
+    organization_name: string | null
+    email: string | null
+    role: string | null
+  },
+  delegatesByOwner: Map<
+    string,
+    { id: string; owner_profile_id: string; email: string; is_active: boolean }[]
+  >,
+  ownerVaultByProfile: Map<string, VaultRow>,
+  delegateVaultById: Map<string, VaultRow>,
+): SupportUserCredential {
+  const isAdmin = profile.role === 'admin'
+  const ownerVault = ownerVaultByProfile.get(profile.id)
+  const ownerPassword = ownerVault ? tryDecrypt(ownerVault) : null
+  const profileDelegates = isAdmin ? [] : (delegatesByOwner.get(profile.id) ?? [])
+
+  return {
+    profileId: profile.id,
+    representativeName: profile.full_name?.trim() || profile.email?.trim() || 'Sin nombre',
+    organizationName: isAdmin
+      ? 'Administrador Conecta360'
+      : profile.organization_name?.trim() || profile.full_name?.trim() || 'Sin organización',
+    email: profile.email?.trim() ?? '',
+    ownerPassword,
+    ownerPasswordAvailable: Boolean(ownerPassword),
+    isAdmin,
+    delegates: profileDelegates.map((delegate) => {
+      const vault = delegateVaultById.get(delegate.id)
+      const password = vault ? tryDecrypt(vault) : null
+      return {
+        id: delegate.id,
+        email: delegate.email,
+        password,
+        passwordAvailable: Boolean(password),
+      }
+    }),
+  }
+}
+
+export async function fetchSupportCredentialsForAdmin(): Promise<SupportCredentialsBundle> {
   const service = createServiceRoleSupabaseClient()
 
   const [{ data: profiles, error: profilesError }, { data: delegates, error: delegatesError }] =
@@ -52,7 +102,7 @@ export async function fetchSupportCredentialsForAdmin(): Promise<SupportUserCred
       service
         .from('profiles')
         .select('id, full_name, organization_name, email, role')
-        .neq('role', 'admin')
+        .order('role', { ascending: true })
         .order('organization_name', { ascending: true }),
       service
         .from('profile_delegated_access')
@@ -89,31 +139,22 @@ export async function fetchSupportCredentialsForAdmin(): Promise<SupportUserCred
     delegatesByOwner.set(delegate.owner_profile_id, list)
   }
 
-  return (profiles ?? []).map((profile) => {
-    const ownerVault = ownerVaultByProfile.get(profile.id)
-    const ownerPassword = ownerVault ? tryDecrypt(ownerVault) : null
+  const admins: SupportUserCredential[] = []
+  const participants: SupportUserCredential[] = []
 
-    const profileDelegates = delegatesByOwner.get(profile.id) ?? []
-
-    return {
-      profileId: profile.id,
-      representativeName:
-        profile.full_name?.trim() || profile.email?.trim() || 'Sin nombre',
-      organizationName:
-        profile.organization_name?.trim() || profile.full_name?.trim() || 'Sin organización',
-      email: profile.email?.trim() ?? '',
-      ownerPassword,
-      ownerPasswordAvailable: Boolean(ownerPassword),
-      delegates: profileDelegates.map((delegate) => {
-        const vault = delegateVaultById.get(delegate.id)
-        const password = vault ? tryDecrypt(vault) : null
-        return {
-          id: delegate.id,
-          email: delegate.email,
-          password,
-          passwordAvailable: Boolean(password),
-        }
-      }),
+  for (const profile of profiles ?? []) {
+    const row = mapProfileToSupportCredential(
+      profile,
+      delegatesByOwner,
+      ownerVaultByProfile,
+      delegateVaultById,
+    )
+    if (row.isAdmin) {
+      admins.push(row)
+    } else {
+      participants.push(row)
     }
-  })
+  }
+
+  return { admins, participants }
 }

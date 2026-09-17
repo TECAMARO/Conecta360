@@ -14,8 +14,8 @@ export async function GET() {
   }
 
   try {
-    const users = await fetchSupportCredentialsForAdmin()
-    return NextResponse.json({ ok: true, users })
+    const { admins, participants } = await fetchSupportCredentialsForAdmin()
+    return NextResponse.json({ ok: true, admins, participants })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'No se pudieron cargar credenciales.' },

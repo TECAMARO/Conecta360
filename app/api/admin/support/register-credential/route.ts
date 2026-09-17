@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    if (!profile?.email || profile.role === 'admin') {
+    if (!profile?.email) {
       return NextResponse.json({ error: 'Perfil no válido.' }, { status: 400 })
     }
 
