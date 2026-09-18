@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
 import {
+  ADMIN_BROADCAST_TEMPLATES,
   buildBroadcastMessage,
   normalizeBroadcastExternalEmail,
   resolveBroadcastOrganizationName,
   resolveExternalBroadcastOrganizationName,
   type AdminBroadcastTemplateId,
 } from '@/lib/admin/broadcast-message-templates'
+
+const VALID_BROADCAST_TEMPLATE_IDS: AdminBroadcastTemplateId[] = [
+  ...Object.keys(ADMIN_BROADCAST_TEMPLATES),
+  'custom',
+] as AdminBroadcastTemplateId[]
 import { verifyAdminApiRequest } from '@/lib/admin/verify-admin-api'
 import { buildAdminBroadcastHtml } from '@/lib/email/admin-broadcast-template'
 import { sendAdminBroadcastMail } from '@/lib/email/send-admin-broadcast-mail'
@@ -59,7 +65,7 @@ export async function POST(request: Request) {
   const templateId = body.templateId
   const profileIds = [...new Set((body.profileIds ?? []).filter(Boolean))]
 
-  if (!templateId || !['general_1', 'general_2', 'custom'].includes(templateId)) {
+  if (!templateId || !VALID_BROADCAST_TEMPLATE_IDS.includes(templateId)) {
     return NextResponse.json({ error: 'Selecciona un tipo de mensaje válido.' }, { status: 400 })
   }
 

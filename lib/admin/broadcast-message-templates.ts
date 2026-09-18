@@ -1,6 +1,6 @@
 import { displayOrg } from '@/lib/email/meeting-email-shared'
 
-export type AdminBroadcastTemplateId = 'general_1' | 'general_2' | 'custom'
+export type AdminBroadcastTemplateId = 'general_1' | 'general_2' | 'profile_1' | 'custom'
 
 export const ORGANIZATION_PLACEHOLDER = '{{ORGANIZACION}}'
 
@@ -77,6 +77,19 @@ Le recomendamos ingresar periódicamente a la plataforma, revisar los nuevos per
 
 ¡Gracias por ser parte de Conecta 360 y nos vemos en la Semana Orinoquía Sostenible y Competitiva 2026!`
 
+const PROFILE_1_BODY = `Señores (NOMBRE DE LA ORGANIZACIÓN):
+
+Nos dirigimos a ustedes para informarles que hemos detectado que el registro de su empresa en la plataforma Conecta360 aún no ha sido completado en su totalidad.
+
+Para finalizar el proceso y asegurar que su cuenta esté correctamente configurada, les solicitamos amablemente que sigan estos breves pasos:
+
+* Ingresar a la plataforma y dirigirse a la sección "Mi Perfil Estratégico".
+* Rellenar los espacios correspondientes que el sistema les indicará como faltantes al momento de hacer clic en el botón "Guardar y publicar Perfil en la Red".
+
+Completar estos datos es un paso fundamental para enriquecer la información de su empresa. Tener un perfil detallado y actualizado les permitirá obtener una mayor visibilidad y llegar a más usuarios dentro de nuestra red de negocios Conecta360.
+
+¡Quedamos a su entera disposición en caso de que requieran soporte o asistencia adicional durante la Semana Orinoquía Sostenible y Competitiva 2026!`
+
 export const ADMIN_BROADCAST_TEMPLATES: Record<
   Exclude<AdminBroadcastTemplateId, 'custom'>,
   { label: string; subject: string; body: string }
@@ -90,6 +103,11 @@ export const ADMIN_BROADCAST_TEMPLATES: Record<
     label: 'Mensaje General 2 (Bienvenida)',
     subject: 'Conecta360 · Bienvenida a la plataforma',
     body: GENERAL_2_BODY,
+  },
+  profile_1: {
+    label: 'Mensaje Perfil',
+    subject: 'Conecta360 · Complete su perfil en la plataforma',
+    body: PROFILE_1_BODY,
   },
 }
 

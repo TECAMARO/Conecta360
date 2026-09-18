@@ -485,12 +485,18 @@ export function AdminMessagesDashboard() {
             {filteredParticipants.map((profile) => {
               const org = displayOrganization(profile)
               const checked = selectedIds.has(profile.id)
+              const isUnpublished = profile.is_published !== true
               return (
                 <label
                   key={profile.id}
                   className={cn(
                     'flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors',
-                    checked ? 'border-[#1a3c34]/25 bg-[#eef3ea]' : 'border-[#dde8d8] hover:bg-[#f8fbf8]',
+                    isUnpublished && 'border-orange-100/90 bg-orange-50/60',
+                    isUnpublished && checked && 'border-[#1a3c34]/25 bg-orange-50/80',
+                    !isUnpublished &&
+                      (checked
+                        ? 'border-[#1a3c34]/25 bg-[#eef3ea]'
+                        : 'border-[#dde8d8] hover:bg-[#f8fbf8]'),
                   )}
                 >
                   <input

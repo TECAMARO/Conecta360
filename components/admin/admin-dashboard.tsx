@@ -65,6 +65,26 @@ function MetricBadge({
   )
 }
 
+function ProfilePublishPill({ published }: { published: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium',
+        published
+          ? 'bg-emerald-100/90 text-emerald-800'
+          : 'bg-orange-100/90 text-orange-800',
+      )}
+      title={
+        published
+          ? 'Guardó y publicó su perfil en la red (Mi Perfil Estratégico).'
+          : 'Aún no ha publicado su perfil en la red.'
+      }
+    >
+      {published ? 'Publicado' : 'Sin publicar'}
+    </span>
+  )
+}
+
 function StatusPill({ label, status }: { label: string; status: string }) {
   const normalized = status.trim().toLowerCase()
   const tone =
@@ -228,6 +248,10 @@ export function AdminDashboard() {
   }
 
   const filteredMeetings = filterAdminMeetings(meetings, meetingFilter)
+  const participantProfiles = profiles.filter((profile) => profile.role !== 'admin')
+  const publishedProfileCount = participantProfiles.filter(
+    (profile) => profile.is_published === true,
+  ).length
 
   return (
     <AdminShell
@@ -238,17 +262,32 @@ export function AdminDashboard() {
     >
         {/* Módulo A */}
         <section className="rounded-2xl border border-[#dde8d8] bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-[#eef3eb] px-5 py-4">
-            <Users className="size-5 text-[#1a3c34]" aria-hidden="true" />
-            <h2 className="text-base font-semibold text-[#1a3c34]">
-              Auditoría de usuarios y métricas por empresa
-            </h2>
+          <div className="flex flex-col gap-2 border-b border-[#eef3eb] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Users className="size-5 text-[#1a3c34]" aria-hidden="true" />
+              <h2 className="text-base font-semibold text-[#1a3c34]">
+                Auditoría de usuarios y métricas por empresa
+              </h2>
+              <span
+                className="inline-flex items-center rounded-full bg-emerald-100/90 px-3 py-1 text-xs font-semibold tabular-nums text-emerald-800"
+                title="Usuarios que ejecutaron Guardar y Publicar Perfil en la Red"
+              >
+                {publishedProfileCount} publicados en red
+              </span>
+              <span className="text-xs tabular-nums text-[#1a3c34]/60">
+                de {participantProfiles.length} participantes
+              </span>
+            </div>
+            <p className="text-xs text-[#1a3c34]/60">
+              Verde suave = perfil publicado · Naranja suave = aún privado (solo visible en admin)
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-[#f8fbf8] text-xs uppercase tracking-wide text-[#1a3c34]/70">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Verity</th>
+                  <th className="px-5 py-3 font-semibold">Perfil en red</th>
                   <th className="px-5 py-3 font-semibold">Representante</th>
                   <th className="px-5 py-3 font-semibold">Empresa</th>
                   <th className="px-5 py-3 font-semibold">Correo</th>
@@ -266,9 +305,15 @@ export function AdminDashboard() {
                   const delegateEmails = profile.delegatedAccessEmails ?? []
                   const hasDelegates = delegateEmails.length > 0
                   const accessExpanded = expandedAccessProfileId === profile.id
+                  const isPublished = profile.is_published === true
+                  const rowTone = isAdminProfile
+                    ? 'hover:bg-[#fafcfa]'
+                    : isPublished
+                      ? 'bg-emerald-50/60 hover:bg-emerald-50/80'
+                      : 'bg-orange-50/50 hover:bg-orange-50/70'
 
                   return (
-                  <tr key={profile.id} className="hover:bg-[#fafcfa]">
+                  <tr key={profile.id} className={rowTone}>
                     <td className="px-5 py-3">
                       {isAdminProfile ? (
                         <span className="text-xs text-muted-foreground">—</span>
@@ -278,6 +323,13 @@ export function AdminDashboard() {
                           disabled={verityUpdatingId === profile.id}
                           onChange={(status) => void handleVerityChange(profile, status)}
                         />
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {isAdminProfile ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <ProfilePublishPill published={isPublished} />
                       )}
                     </td>
                     <td className="px-5 py-3 font-medium text-[#1a3c34]">
@@ -356,7 +408,7 @@ export function AdminDashboard() {
                 })}
                 {profiles.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-5 py-10 text-center text-muted-foreground">
                       No hay perfiles registrados.
                     </td>
                   </tr>
